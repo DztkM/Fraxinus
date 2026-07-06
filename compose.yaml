@@ -1,0 +1,10 @@
+services:
+  fastapi:
+    build:
+      context: ./backend
+      dockerfile: dockerfile
+    working_dir: /app
+    volumes:
+      - ./backend/app:/app/app
+    ports:
+      - "${APP_PORT:-8000}:8000"
