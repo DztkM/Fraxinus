@@ -30,3 +30,8 @@ Links:
 ```bash
 docker compose down -v 
 ```
+
+## Migrations
+```
+alembic upgrade head
+```
