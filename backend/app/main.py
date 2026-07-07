@@ -1,8 +1,10 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
+
+from core.auth import get_current_user
 
 app = FastAPI()
 
@@ -36,4 +38,14 @@ async def health_check():
         "database": db_status,
         "database_url": os.getenv("DATABASE_URL", "Not Set").split("@")[-1],
         "minio_endpoint": os.getenv("MINIO_ENDPOINT", "Not Set"),
+    }
+
+@app.get("/v1/api/check_auth")
+async def check_auth(user_id: str | None = Depends(get_current_user)):
+    if user_id is None:
+        return {"message": "Access granted via share_token"}
+        
+    return {
+        "message": "Authentication successful",
+        "user_id": user_id
     }

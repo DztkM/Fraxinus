@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Clerk Token Debug</title>
+
+    <script
+      defer
+      crossorigin="anonymous"
+      src=""
+      type="text/javascript"
+    ></script>
+
+    <script
+      defer
+      crossorigin="anonymous"
+      data-clerk-publishable-key=""
+      src=""
+      type="text/javascript"
+    ></script>
+  </head>
+
+  <body>
+    <h2>Clerk Token</h2>
+
+    <div id="auth"></div>
+
+    <button id="tokenBtn">Get JWT</button>
+
+    <pre id="token"></pre>
+
+    <script>
+      window.addEventListener("load", async () => {
+        await Clerk.load();
+
+        if (!Clerk.user) {
+          await Clerk.redirectToSignIn({
+            redirectUrl: window.location.href,
+          });
+        }
+
+        const token = await Clerk.session.getToken({
+          template: "backend",
+        });
+
+        console.log(token);
+      });
+    </script>
+  </body>
+</html>
