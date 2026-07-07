@@ -1,8 +1,18 @@
 import os
 from fastapi import FastAPI
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import create_async_engine
 
 app = FastAPI()
 
+DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://admin:CHANGEMELATER@localhost:5433/fraxinus_database")
+
+
+
+engine = None
+if DATABASE_URL:
+    engine = create_async_engine(DATABASE_URL)
 
 @app.get("/")
 async def root():
@@ -10,9 +20,20 @@ async def root():
 
 
 @app.get("/health")
-def health_check():
+async def health_check():
+    db_status = "not configured"
+
+    if engine is not None:
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            db_status = "connected"
+        except SQLAlchemyError as e:
+            db_status = f"error: {e.__class__.__name__}"
+
     return {
         "status": "ok",
-        "database_url": os.getenv("DATABASE_URL", "Not Set").split("@")[-1], 
-        "minio_endpoint": os.getenv("MINIO_ENDPOINT", "Not Set")
+        "database": db_status,
+        "database_url": os.getenv("DATABASE_URL", "Not Set").split("@")[-1],
+        "minio_endpoint": os.getenv("MINIO_ENDPOINT", "Not Set"),
     }
