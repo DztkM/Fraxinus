@@ -19,6 +19,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy the project into the image
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 
 # Sync the project
 RUN --mount=type=cache,target=/root/.cache/uv \
