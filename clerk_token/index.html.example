@@ -23,9 +23,13 @@
   <body>
     <h2>Clerk Token</h2>
 
-    <div id="auth"></div>
+    <div id="auth">
+      <button id="loginBtn">Login</button>
+      <button id="logoutBtn" style="display:none;">Logout</button>
+    </div>
 
-    <button id="tokenBtn">Get JWT</button>
+    <button id="tokenBtn" style="display:none;">Get JWT</button>
+    <button id="copyBtn" style="display:none;">Copy Token</button>
 
     <pre id="token"></pre>
 
@@ -33,17 +37,53 @@
       window.addEventListener("load", async () => {
         await Clerk.load();
 
-        if (!Clerk.user) {
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const tokenBtn = document.getElementById('tokenBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const tokenPre = document.getElementById('token');
+
+        if (Clerk.user) {
+          loginBtn.style.display = 'none';
+          logoutBtn.style.display = 'inline-block';
+          tokenBtn.style.display = 'inline-block';
+          copyBtn.style.display = 'inline-block';
+        }
+
+        loginBtn.addEventListener('click', async () => {
           await Clerk.redirectToSignIn({
             redirectUrl: window.location.href,
           });
-        }
-
-        const token = await Clerk.session.getToken({
-          template: "backend",
         });
 
-        console.log(token);
+        logoutBtn.addEventListener('click', async () => {
+          await Clerk.signOut();
+          window.location.reload();
+        });
+
+        tokenBtn.addEventListener('click', async () => {
+          if (!Clerk.session) return;
+          const token = await Clerk.session.getToken({
+            template: "backend",
+          });
+          tokenPre.textContent = token;
+          console.log(token);
+        });
+
+        copyBtn.addEventListener('click', async () => {
+          const token = tokenPre.textContent;
+          if (token) {
+            try {
+              await navigator.clipboard.writeText(token);
+              alert("Token copied to clipboard!");
+            } catch (err) {
+              console.error("Failed to copy token", err);
+              alert("Failed to copy token.");
+            }
+          } else {
+            alert("Please Get JWT first.");
+          }
+        });
       });
     </script>
   </body>
