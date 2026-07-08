@@ -6,6 +6,12 @@ class Settings(BaseSettings):
     # Default to a local dev DB if not provided
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://admin:CHANGEMELATER@localhost:5433/fraxinus_database")
 
+    # MinIO
+    MINIO_ENDPOINT: str = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
+    MINIO_ROOT_USER: str = os.getenv("MINIO_ROOT_USER", "minioadmin")
+    MINIO_ROOT_PASSWORD: str = os.getenv("MINIO_ROOT_PASSWORD", "CHANGEMELATER")
+    MINIO_BUCKET_NAME: str = os.getenv("MINIO_BUCKET_NAME", "fraxinus-files")
+
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True, extra="ignore")
 
 settings = Settings()

@@ -1,9 +1,9 @@
-from app.models.base import Base
-from app.models.physical_file import PhysicalFile
-from app.models.folder import Folder
-from app.models.file import File
-from app.models.permissions import FolderAllowedUser, FileAllowedUser
-from app.models.share_link import ShareLink
+from models.base import Base
+from models.physical_file import PhysicalFile
+from models.folder import Folder
+from models.file import File
+from models.permissions import FolderAllowedUser, FileAllowedUser
+from models.share_link import ShareLink
 
 __all__ = [
     "Base",

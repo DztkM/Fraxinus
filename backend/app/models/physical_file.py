@@ -6,10 +6,10 @@ from sqlalchemy import BigInteger, String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from app.models.base import Base
+from models.base import Base
 
 if TYPE_CHECKING:
-    from app.models.file import File
+    from models.file import File
 
 class PhysicalFile(Base):
     __tablename__ = "physical_files"

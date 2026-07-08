@@ -5,6 +5,7 @@ description = "Internal File Gateway"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aioboto3>=15.5.0",
     "alembic>=1.18.5",
     "asyncpg>=0.31.0",
     "fastapi[standard]>=0.139.0",
@@ -12,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "pyjwt[crypto]>=2.13.0",
     "sqlalchemy>=2.0.51",
+    "types-aioboto3>=15.5.0",
 ]
 
 [tool.uv]
@@ -20,4 +22,5 @@ dev-dependencies = [
     "mypy<2.0.0,>=1.8.0",
     "ruff<1.0.0,>=0.2.2",
     "pre-commit<4.1.0,>=4.0.0",
+    "requests>=2.34.2",
 ]

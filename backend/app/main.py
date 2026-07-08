@@ -1,12 +1,21 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from core.auth import get_current_user
+from api.files import router as files_router
+from core.minio import init_minio_bucket
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_minio_bucket()
+    yield
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(files_router)
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://admin:CHANGEMELATER@localhost:5433/fraxinus_database")
 

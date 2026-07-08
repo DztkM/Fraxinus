@@ -1,4 +1,8 @@
 import asyncio
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'app')))
+
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -23,8 +27,8 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 # target_metadata = None
 
-from app.models import Base
-from app.core.config import settings
+from models import Base
+from core.config import settings
 
 target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
