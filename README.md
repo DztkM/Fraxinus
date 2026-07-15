@@ -25,19 +25,19 @@ For local development with hot-reloading for the FastAPI backend:
    ```bash
    docker compose -f compose.dev.yaml up -d
    ```
-2. Setup and run the backend locally using `uv`:
+2. Setup `uv`:
    ```bash
    cd backend
    uv sync
+   ```
+3. Apply the latest database schemas using Alembic:
+   ```bash
+   uv run alembic upgrade head
+   ```
+4. Run the backend locally:
+   ```bash
    uv run fastapi dev app/main.py 
    ```
-
-### 3. Database Migrations
-Apply the latest database schemas using Alembic:
-```bash
-cd backend
-uv run alembic upgrade head
-```
 
 ---
 

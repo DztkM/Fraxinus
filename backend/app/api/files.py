@@ -51,6 +51,9 @@ async def init_upload(
             },
             ExpiresIn=3600,
         )
+        # Fix URL for external access (from host machine instead of docker network)
+        if settings.MINIO_EXTERNAL_ENDPOINT:
+            url = url.replace(settings.MINIO_ENDPOINT, settings.MINIO_EXTERNAL_ENDPOINT, 1)
         presigned_urls[i] = url
         
     # db records
@@ -149,6 +152,10 @@ async def download_file(
         },
         ExpiresIn=3600,
     )
+    
+    # Fix URL for external access
+    if settings.MINIO_EXTERNAL_ENDPOINT:
+        url = url.replace(settings.MINIO_ENDPOINT, settings.MINIO_EXTERNAL_ENDPOINT, 1)
     
     return FileDownloadResponse(url=url, original_name=file_record.original_name)
 

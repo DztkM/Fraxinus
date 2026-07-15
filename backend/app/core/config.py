@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     # MinIO
     MINIO_ENDPOINT: str = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
+    MINIO_EXTERNAL_ENDPOINT: str = os.getenv("MINIO_EXTERNAL_ENDPOINT", "http://127.0.0.1:9000")
     MINIO_ROOT_USER: str = os.getenv("MINIO_ROOT_USER", "minioadmin")
     MINIO_ROOT_PASSWORD: str = os.getenv("MINIO_ROOT_PASSWORD", "CHANGEMELATER")
     MINIO_BUCKET_NAME: str = os.getenv("MINIO_BUCKET_NAME", "fraxinus-files")

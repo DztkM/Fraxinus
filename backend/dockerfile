@@ -26,4 +26,7 @@ COPY alembic.ini ./alembic.ini
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-CMD ["uv", "run", "fastapi", "dev", "app/main.py", "--host", "0.0.0.0"]
+# CMD ["uv", "run", "fastapi", "dev", "app/main.py", "--host", "0.0.0.0"]
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]

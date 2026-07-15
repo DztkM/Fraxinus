@@ -4,7 +4,7 @@ x-minio-common: &minio-common
   environment:
     MINIO_ROOT_USER: ${MINIO_ROOT_USER}
     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-  restart: always
+  restart: unless-stopped
 
 services:
 
@@ -19,7 +19,7 @@ services:
       - ./initdb:/docker-entrypoint-initdb.d
     ports:
       - "5433:5432"
-    restart: always
+    restart: unless-stopped
 
   fastapi:
     build:
@@ -28,7 +28,7 @@ services:
     working_dir: /app
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - MINIO_ENDPOINT=nginx:9000
+      - MINIO_ENDPOINT=http://nginx:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
     volumes:
@@ -38,7 +38,7 @@ services:
     depends_on:
       - db
       - minio1
-    restart: always
+    restart: unless-stopped
   
   minio1:
     <<: *minio-common
