@@ -187,3 +187,43 @@ async def list_files(
     )
     files = result.scalars().all()
     return files
+
+@router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_file(
+    file_id: uuid.UUID,
+    user_id: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    s3: Any = Depends(get_s3_client),
+):
+    result = await db.execute(select(File).where(File.id == file_id))
+    file_record = result.scalar_one_or_none()
+    
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if file_record.uploader_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        
+    physical_file_id = file_record.physical_file_id
+    
+    await db.delete(file_record)
+    await db.flush()
+    
+    # Check if physical file is still referenced
+    other_files_result = await db.execute(
+        select(File).where(File.physical_file_id == physical_file_id).limit(1)
+    )
+    other_files = other_files_result.scalars().first()
+    
+    if not other_files:
+        pf_result = await db.execute(select(PhysicalFile).where(PhysicalFile.id == physical_file_id))
+        pf = pf_result.scalar_one_or_none()
+        if pf:
+            try:
+                await s3.delete_object(Bucket=settings.MINIO_BUCKET_NAME, Key=pf.internal_key)
+            except Exception:
+                pass
+            await db.delete(pf)
+            
+    await db.commit()
+    return None

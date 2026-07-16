@@ -92,3 +92,36 @@ async def get_folder_contents(
     files = files_result.scalars().all()
     
     return FolderContentsResponse(folders=folders, files=files)
+
+@router.delete("/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_folder(
+    folder_id: uuid.UUID,
+    user_id: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Folder).where(Folder.id == folder_id))
+    folder = result.scalar_one_or_none()
+    
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+        
+    if folder.author_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        
+    # Check for child folders
+    child_folders_result = await db.execute(
+        select(Folder).where(Folder.parent_id == folder_id).limit(1)
+    )
+    if child_folders_result.scalars().first():
+        raise HTTPException(status_code=400, detail="Folder is not empty (contains folders)")
+        
+    # Check for child files
+    child_files_result = await db.execute(
+        select(File).where(File.folder_id == folder_id).limit(1)
+    )
+    if child_files_result.scalars().first():
+        raise HTTPException(status_code=400, detail="Folder is not empty (contains files)")
+        
+    await db.delete(folder)
+    await db.commit()
+    return None
