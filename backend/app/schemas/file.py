@@ -7,6 +7,7 @@ class FileUploadInitRequest(BaseModel):
     size: int
     mime_type: str
     parts_count: int
+    folder_id: uuid.UUID | None = None
 
 class FileUploadInitResponse(BaseModel):
     file_id: uuid.UUID

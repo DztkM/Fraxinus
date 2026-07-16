@@ -10,6 +10,7 @@ from core.database import get_db
 from core.minio import get_s3_client
 from core.auth import get_current_user
 from models.file import File
+from models.folder import Folder
 from models.physical_file import PhysicalFile
 from schemas.file import (
     FileUploadInitRequest,
@@ -28,6 +29,19 @@ async def init_upload(
     db: AsyncSession = Depends(get_db),
     s3: Any = Depends(get_s3_client),
 ):
+    file_id = uuid.uuid4()
+    path = str(file_id).replace("-", "_")
+    
+    if request.folder_id:
+        folder_result = await db.execute(select(Folder).where(Folder.id == request.folder_id))
+        folder = folder_result.scalar_one_or_none()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found")
+        if folder.author_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        if folder.path:
+            path = f"{folder.path}.{path}"
+
     internal_key = str(uuid.uuid4())
     
     # Start multipart upload in MinIO
@@ -67,7 +81,10 @@ async def init_upload(
     await db.flush()  # to get pf.id
     
     file_record = File(
+        id=file_id,
+        folder_id=request.folder_id,
         original_name=request.original_name,
+        path=path,
         uploader_id=user_id,
         status="pending",
         physical_file_id=pf.id,
@@ -161,11 +178,12 @@ async def download_file(
 
 @router.get("/", response_model=list[FileResponse])
 async def list_files(
+    limit: int = 100,
     user_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(File).where(File.uploader_id == user_id)
+        select(File).where(File.uploader_id == user_id).limit(limit)
     )
     files = result.scalars().all()
     return files
