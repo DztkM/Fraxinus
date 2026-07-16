@@ -8,6 +8,9 @@ class FolderCreateRequest(BaseModel):
     name: str
     parent_id: uuid.UUID | None = None
 
+class FolderUpdateRequest(BaseModel):
+    name: str
+
 class FolderResponse(BaseModel):
     id: uuid.UUID
     name: str

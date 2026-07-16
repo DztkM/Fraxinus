@@ -9,6 +9,9 @@ class FileUploadInitRequest(BaseModel):
     parts_count: int
     folder_id: uuid.UUID | None = None
 
+class FileUpdateRequest(BaseModel):
+    original_name: str
+
 class FileUploadInitResponse(BaseModel):
     file_id: uuid.UUID
     upload_id: str

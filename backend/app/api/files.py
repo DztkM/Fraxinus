@@ -18,6 +18,7 @@ from schemas.file import (
     FileUploadCompleteRequest,
     FileResponse,
     FileDownloadResponse,
+    FileUpdateRequest,
 )
 
 router = APIRouter(prefix="/api/files", tags=["files"])
@@ -227,3 +228,24 @@ async def delete_file(
             
     await db.commit()
     return None
+
+@router.patch("/{file_id}", response_model=FileResponse)
+async def update_file(
+    file_id: uuid.UUID,
+    request: FileUpdateRequest,
+    user_id: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(File).where(File.id == file_id))
+    file_record = result.scalar_one_or_none()
+    
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if file_record.uploader_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        
+    file_record.original_name = request.original_name
+    await db.commit()
+    await db.refresh(file_record)
+    return file_record

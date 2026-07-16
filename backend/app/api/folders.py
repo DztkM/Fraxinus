@@ -9,7 +9,7 @@ from core.database import get_db
 from core.auth import get_current_user
 from models.folder import Folder
 from models.file import File
-from schemas.folder import FolderCreateRequest, FolderResponse, FolderContentsResponse
+from schemas.folder import FolderCreateRequest, FolderResponse, FolderContentsResponse, FolderUpdateRequest
 
 router = APIRouter(prefix="/api/folders", tags=["folders"])
 
@@ -125,3 +125,24 @@ async def delete_folder(
     await db.delete(folder)
     await db.commit()
     return None
+
+@router.patch("/{folder_id}", response_model=FolderResponse)
+async def update_folder(
+    folder_id: uuid.UUID,
+    request: FolderUpdateRequest,
+    user_id: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Folder).where(Folder.id == folder_id))
+    folder = result.scalar_one_or_none()
+    
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+        
+    if folder.author_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        
+    folder.name = request.name
+    await db.commit()
+    await db.refresh(folder)
+    return folder
