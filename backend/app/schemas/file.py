@@ -1,12 +1,16 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class FileUploadInitRequest(BaseModel):
     original_name: str
     size: int
     mime_type: str
     parts_count: int
+    folder_id: uuid.UUID | None = None
+
+class FileUpdateRequest(BaseModel):
+    original_name: str
 
 class FileUploadInitResponse(BaseModel):
     file_id: uuid.UUID
@@ -22,13 +26,11 @@ class FileUploadCompleteRequest(BaseModel):
     parts: list[FileUploadPart]
 
 class FileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     original_name: str
     status: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class FileDownloadResponse(BaseModel):
     url: str

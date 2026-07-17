@@ -110,7 +110,7 @@ To test multipart upload and file endpoints a test script is provided.
 3. Run the test script from the `backend` folder:
 ```bash
 cd backend
-uv run python scripts/test_upload.py "<YOUR_JWT_TOKEN>" "path/to/any/file.jpg"
+uv run python scripts/test_upload.py "<YOUR_JWT_TOKEN>" "path/to/any/file.jpg" "[OPTIONAL]folder_id"
 ```
 This script will:
 - Contact `/api/files/upload/init` to create DB records and get pre-signed MinIO URLs for 5MB chunks.
