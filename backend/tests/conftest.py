@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from main import app
 from core.database import get_db
+from core.auth import get_current_user
+from core.minio import get_s3_client
 from core.config import settings
 from sqlalchemy.pool import NullPool
 
@@ -48,10 +50,30 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[httpx.AsyncClient, 
     async def override_get_db():
         yield db_session
         
+    async def override_get_current_user():
+        return "test_user_123"
+        
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
     
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
         
     app.dependency_overrides.clear()
+
+@pytest.fixture
+def mock_s3():
+    from unittest.mock import AsyncMock
+    s3_mock = AsyncMock()
+    s3_mock.create_multipart_upload.return_value = {"UploadId": "test_upload_id"}
+    s3_mock.generate_presigned_url.return_value = "http://mock-minio-url/presigned"
+    s3_mock.complete_multipart_upload.return_value = {}
+    s3_mock.delete_object.return_value = {}
+    
+    async def override_get_s3_client():
+        yield s3_mock
+        
+    app.dependency_overrides[get_s3_client] = override_get_s3_client
+    yield s3_mock
+    app.dependency_overrides.pop(get_s3_client, None)
