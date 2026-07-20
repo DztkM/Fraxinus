@@ -9,6 +9,21 @@ export interface FileItem {
   created_at: string;
 }
 
+export interface FolderItem {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  path: string | null;
+  set_access_level: number;
+  actual_access_level: number;
+  created_at: string;
+}
+
+export interface FolderContents {
+  folders: FolderItem[];
+  files: FileItem[];
+}
+
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function fetchFiles(token: string): Promise<FileItem[]> {
@@ -22,6 +37,45 @@ export async function fetchFiles(token: string): Promise<FileItem[]> {
     const errText = await res.text();
     console.error("Fetch files error:", res.status, errText);
     throw new Error(`Failed to fetch files: ${res.status} ${res.statusText} - ${errText}`);
+  }
+  return res.json();
+}
+
+export async function fetchFolderContents(token: string, folderId: string | 'root'): Promise<FolderContents> {
+  const url = folderId === 'root' 
+    ? `${API_BASE_URL}/api/folders/root/contents`
+    : `${API_BASE_URL}/api/folders/${folderId}/contents`;
+    
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Failed to fetch folder contents: ${res.status} ${res.statusText} - ${errText}`);
+  }
+  return res.json();
+}
+
+export async function createFolder(token: string, name: string, parentId?: string | null): Promise<FolderItem> {
+  const body: any = { name };
+  if (parentId && parentId !== 'root') {
+    body.parent_id = parentId;
+  }
+  
+  const res = await fetch(`${API_BASE_URL}/api/folders/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Failed to create folder: ${res.status} ${res.statusText} - ${errText}`);
   }
   return res.json();
 }
@@ -55,9 +109,21 @@ export async function downloadFile(token: string, fileId: string): Promise<void>
 export async function uploadFile(
   token: string, 
   file: File, 
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  folderId?: string | null
 ): Promise<void> {
   const partsCount = Math.ceil(file.size / CHUNK_SIZE) || 1;
+
+  const initPayload: any = {
+    original_name: file.name,
+    size: file.size,
+    mime_type: file.type || 'application/octet-stream',
+    parts_count: partsCount
+  };
+  
+  if (folderId && folderId !== 'root') {
+    initPayload.folder_id = folderId;
+  }
 
   // 1. Init upload
   const initRes = await fetch(`${API_BASE_URL}/api/files/upload/init`, {
@@ -66,12 +132,7 @@ export async function uploadFile(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      original_name: file.name,
-      size: file.size,
-      mime_type: file.type || 'application/octet-stream',
-      parts_count: partsCount
-    })
+    body: JSON.stringify(initPayload)
   });
 
   if (!initRes.ok) {
