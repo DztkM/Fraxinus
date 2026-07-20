@@ -24,6 +24,15 @@ export interface FolderContents {
   files: FileItem[];
 }
 
+async function extractErrorMessage(res: Response): Promise<string> {
+  try {
+    const data = await res.json();
+    return data.detail || JSON.stringify(data);
+  } catch {
+    return `${res.status} ${res.statusText}`;
+  }
+}
+
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function fetchFiles(token: string): Promise<FileItem[]> {
@@ -193,5 +202,63 @@ export async function uploadFile(
 
   if (!completeRes.ok) {
     throw new Error(`Failed to complete upload: ${completeRes.status} ${completeRes.statusText}`);
+  }
+}
+
+export async function renameFolder(token: string, folderId: string, name: string): Promise<FolderItem> {
+  const res = await fetch(`${API_BASE_URL}/api/folders/${folderId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ name })
+  });
+  if (!res.ok) {
+    const detail = await extractErrorMessage(res);
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+export async function deleteFolder(token: string, folderId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/folders/${folderId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!res.ok) {
+    const detail = await extractErrorMessage(res);
+    throw new Error(detail);
+  }
+}
+
+export async function renameFile(token: string, fileId: string, originalName: string): Promise<FileItem> {
+  const res = await fetch(`${API_BASE_URL}/api/files/${fileId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ original_name: originalName })
+  });
+  if (!res.ok) {
+    const detail = await extractErrorMessage(res);
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+export async function deleteFile(token: string, fileId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/files/${fileId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!res.ok) {
+    const detail = await extractErrorMessage(res);
+    throw new Error(detail);
   }
 }

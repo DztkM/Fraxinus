@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuth } from '@clerk/vue'
 import { 
   fetchFiles, 
@@ -7,6 +7,10 @@ import {
   downloadFile,
   fetchFolderContents,
   createFolder,
+  renameFolder,
+  deleteFolder,
+  renameFile,
+  deleteFile,
   type FileItem,
   type FolderItem 
 } from '../services/api'
@@ -39,6 +43,84 @@ const errorMsg = ref<string | null>(null)
 const isUploading = ref(false)
 const uploadProgress = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
+
+// Menu and Modal State
+type ItemType = 'file' | 'folder'
+const activeMenuId = ref<string | null>(null)
+
+const deleteModal = ref<{ isOpen: boolean, type: ItemType, id: string, name: string, error: string | null }>({
+  isOpen: false, type: 'file', id: '', name: '', error: null
+})
+
+const renameModal = ref<{ isOpen: boolean, type: ItemType, id: string, oldName: string, newName: string, error: string | null }>({
+  isOpen: false, type: 'file', id: '', oldName: '', newName: '', error: null
+})
+
+// Click outside to close menu
+const closeMenu = () => {
+  activeMenuId.value = null
+}
+
+const toggleMenu = (id: string, event: Event) => {
+  event.stopPropagation()
+  if (activeMenuId.value === id) activeMenuId.value = null
+  else activeMenuId.value = id
+}
+
+const promptRename = (type: ItemType, id: string, oldName: string) => {
+  activeMenuId.value = null
+  renameModal.value = { isOpen: true, type, id, oldName, newName: oldName, error: null }
+}
+
+const promptDelete = (type: ItemType, id: string, name: string) => {
+  activeMenuId.value = null
+  deleteModal.value = { isOpen: true, type, id, name, error: null }
+}
+
+const confirmRename = async () => {
+  const { type, id, newName, oldName } = renameModal.value
+  if (!newName.trim() || newName.trim() === oldName) {
+    renameModal.value.isOpen = false
+    return
+  }
+  
+  renameModal.value.error = null
+  try {
+    const token = await getToken.value()
+    if (!token) throw new Error("No token available")
+    
+    if (type === 'folder') {
+      await renameFolder(token, id, newName.trim())
+    } else {
+      await renameFile(token, id, newName.trim())
+    }
+    renameModal.value.isOpen = false
+    if (activeTab.value === 'all') await loadAllFiles()
+    else await loadExplorer()
+  } catch (error: any) {
+    renameModal.value.error = error.message
+  }
+}
+
+const confirmDelete = async () => {
+  const { type, id } = deleteModal.value
+  deleteModal.value.error = null
+  try {
+    const token = await getToken.value()
+    if (!token) throw new Error("No token available")
+    
+    if (type === 'folder') {
+      await deleteFolder(token, id)
+    } else {
+      await deleteFile(token, id)
+    }
+    deleteModal.value.isOpen = false
+    if (activeTab.value === 'all') await loadAllFiles()
+    else await loadExplorer()
+  } catch (error: any) {
+    deleteModal.value.error = error.message
+  }
+}
 
 const loadAllFiles = async () => {
   if (!isSignedIn.value) return
@@ -124,6 +206,11 @@ const handleCreateFolder = async () => {
 
 onMounted(() => {
   loadExplorer()
+  document.addEventListener('click', closeMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeMenu)
 })
 
 const handleFileSelect = async (event: Event) => {
@@ -182,6 +269,7 @@ const performUpload = async (file: File) => {
 }
 
 const triggerDownload = async (fileId: string) => {
+  activeMenuId.value = null
   errorMsg.value = null
   try {
     const token = await getToken.value()
@@ -336,7 +424,15 @@ const formatDate = (dateString: string) => {
               </div>
             </td>
             <td class="date-col">{{ formatDate(folder.created_at) }}</td>
-            <td class="actions-col"></td>
+            <td class="actions-col">
+              <div class="dropdown-container" @click.stop>
+                <button class="btn btn-action" @click="toggleMenu(folder.id, $event)">⋮</button>
+                <div v-if="activeMenuId === folder.id" class="dropdown-menu">
+                  <button class="dropdown-item" @click="promptRename('folder', folder.id, folder.name)">Rename</button>
+                  <button class="dropdown-item text-red" @click="promptDelete('folder', folder.id, folder.name)">Delete</button>
+                </div>
+              </div>
+            </td>
           </tr>
           
           <!-- Files -->
@@ -359,14 +455,14 @@ const formatDate = (dateString: string) => {
             </td>
             <td class="date-col">{{ formatDate(file.created_at) }}</td>
             <td class="actions-col">
-              <button 
-                class="btn btn-action" 
-                @click.stop="triggerDownload(file.id)"
-                :disabled="file.status !== 'completed'"
-                title="Download"
-              >
-                ⬇️
-              </button>
+              <div class="dropdown-container" @click.stop>
+                <button class="btn btn-action" @click="toggleMenu(file.id, $event)">⋮</button>
+                <div v-if="activeMenuId === file.id" class="dropdown-menu">
+                  <button class="dropdown-item" @click="triggerDownload(file.id)" :disabled="file.status !== 'completed'">Download</button>
+                  <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
+                  <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
+                </div>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -418,19 +514,60 @@ const formatDate = (dateString: string) => {
             </td>
             <td class="date-col">{{ formatDate(file.created_at) }}</td>
             <td class="actions-col">
-              <button 
-                class="btn btn-action" 
-                @click="triggerDownload(file.id)"
-                :disabled="file.status !== 'completed'"
-                title="Download"
-              >
-                ⬇️
-              </button>
+              <div class="dropdown-container" @click.stop>
+                <button class="btn btn-action" @click="toggleMenu(file.id, $event)">⋮</button>
+                <div v-if="activeMenuId === file.id" class="dropdown-menu">
+                  <button class="dropdown-item" @click="triggerDownload(file.id)" :disabled="file.status !== 'completed'">Download</button>
+                  <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
+                  <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
+                </div>
+              </div>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
+    
+    <!-- MODALS -->
+    <div v-if="deleteModal.isOpen" class="modal-overlay" @click="deleteModal.isOpen = false">
+      <div class="modal-content" @click.stop>
+        <h3>Delete {{ deleteModal.type === 'folder' ? 'Folder' : 'File' }}</h3>
+        <p>Are you sure you want to delete <strong>{{ deleteModal.name }}</strong>?</p>
+        <p v-if="deleteModal.type === 'folder'" class="text-sm text-gray">This cannot be undone. The folder must be empty.</p>
+        
+        <div v-if="deleteModal.error" class="modal-error">
+          {{ deleteModal.error }}
+        </div>
+        
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="deleteModal.isOpen = false">Cancel</button>
+          <button class="btn btn-danger" @click="confirmDelete">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="renameModal.isOpen" class="modal-overlay" @click="renameModal.isOpen = false">
+      <div class="modal-content" @click.stop>
+        <h3>Rename {{ renameModal.type === 'folder' ? 'Folder' : 'File' }}</h3>
+        <input 
+          v-model="renameModal.newName" 
+          type="text" 
+          class="input-text modal-input" 
+          @keyup.enter="confirmRename"
+          autofocus
+        />
+        
+        <div v-if="renameModal.error" class="modal-error">
+          {{ renameModal.error }}
+        </div>
+        
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="renameModal.isOpen = false">Cancel</button>
+          <button class="btn btn-primary" @click="confirmRename" :disabled="!renameModal.newName.trim()">Save</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -507,6 +644,14 @@ const formatDate = (dateString: string) => {
 }
 .btn-primary:hover:not(:disabled) {
   background-color: #334155;
+}
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: #dc2626;
 }
 .btn-secondary {
   background-color: transparent;
@@ -589,7 +734,7 @@ const formatDate = (dateString: string) => {
   background-color: white;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
@@ -641,10 +786,10 @@ const formatDate = (dateString: string) => {
 }
 
 .input-text {
-  padding: 0.25rem 0.5rem;
+  padding: 0.375rem 0.5rem;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   outline: none;
 }
 .input-text:focus {
@@ -786,10 +931,124 @@ const formatDate = (dateString: string) => {
 .actions-col {
   text-align: right;
   width: 80px;
+  position: relative;
 }
 
 .btn-action {
   padding: 0.25rem 0.5rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 50;
+  min-width: 120px;
+  overflow: hidden;
+  text-align: left;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #334155;
+  transition: background-color 0.15s;
+}
+
+.dropdown-item:hover:not(:disabled) {
+  background-color: #f1f5f9;
+}
+
+.dropdown-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.text-red {
+  color: #ef4444;
+}
+.text-red:hover:not(:disabled) {
+  background-color: #fef2f2;
+}
+
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #0f172a;
+}
+
+.modal-content p {
+  color: #334155;
+  margin-bottom: 1.5rem;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+.text-gray {
+  color: #64748b;
+}
+
+.modal-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 1.5rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.modal-error {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background-color: #fef2f2;
+  color: #991b1b;
+  border-radius: 4px;
   font-size: 0.875rem;
 }
 </style>
