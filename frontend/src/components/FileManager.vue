@@ -238,9 +238,16 @@ watch(
     if (route.name === 'folder') {
       currentFolderId.value = (newId as string) || 'root'
       activeTab.value = 'explorer'
-      if (currentFolderId.value !== 'root' && breadcrumbs.value.length === 1) {
-        breadcrumbs.value.push({ id: currentFolderId.value, name: 'Loading...' })
-      } else if (currentFolderId.value === 'root') {
+      
+      if (currentFolderId.value !== 'root') {
+        const index = breadcrumbs.value.findIndex(b => b.id === currentFolderId.value)
+        if (index !== -1) {
+          breadcrumbs.value = breadcrumbs.value.slice(0, index + 1)
+        } else {
+          // Navigating directly or jumping
+          breadcrumbs.value = [{ id: currentFolderId.value, name: 'Loading...' }]
+        }
+      } else {
         breadcrumbs.value = [{ id: 'root', name: 'Root' }]
       }
       loadExplorer()
@@ -260,13 +267,32 @@ const handleTabChange = (tab: Tab) => {
   } else if (tab === 'shared') {
     loadSharedItems()
   } else {
-    loadExplorer()
+    if (route.name !== 'home') {
+      router.push({ name: 'home' })
+    } else {
+      loadExplorer()
+    }
   }
 }
 
-const navigateToFolder = (folderId: string, folderName: string) => {
-  breadcrumbs.value.push({ id: folderId, name: folderName })
-  router.push({ name: 'folder', params: { id: folderId } })
+const navigateToFolder = (folderId: string, folderName: string, resetBreadcrumbs = false) => {
+  if (resetBreadcrumbs) {
+    breadcrumbs.value = [{ id: folderId, name: folderName }]
+  } else {
+    const lastCrumb = breadcrumbs.value[breadcrumbs.value.length - 1]
+    if (!lastCrumb || lastCrumb.id !== folderId) {
+      breadcrumbs.value.push({ id: folderId, name: folderName })
+    }
+  }
+  
+  activeTab.value = 'explorer'
+  
+  if (route.params.id === folderId) {
+    currentFolderId.value = folderId
+    loadExplorer()
+  } else {
+    router.push({ name: 'folder', params: { id: folderId } })
+  }
 }
 
 const navigateToBreadcrumb = (index: number) => {
@@ -304,7 +330,17 @@ const handleCreateFolder = async () => {
 }
 
 onMounted(() => {
-  loadExplorer()
+  if (route.name === 'folder') {
+    currentFolderId.value = route.params.id as string
+    breadcrumbs.value = [{ id: currentFolderId.value, name: 'Loading...' }]
+    loadExplorer()
+  } else if (route.name === 'home') {
+    currentFolderId.value = 'root'
+    breadcrumbs.value = [{ id: 'root', name: 'Root' }]
+    loadExplorer()
+  } else {
+    loadExplorer()
+  }
   document.addEventListener('click', closeMenu)
 })
 
@@ -702,7 +738,7 @@ const formatDate = (dateString: string) => {
             :key="'shared-'+item.id" 
             class="file-row"
             :class="{ 'folder-row': item.type === 'folder' }"
-            @click="item.type === 'folder' ? navigateToFolder(item.id, item.name) : null"
+            @click="item.type === 'folder' ? navigateToFolder(item.id, item.name, true) : null"
           >
             <td class="file-name">
               <span v-if="item.type === 'folder'" class="file-icon folder-icon">📁</span>
