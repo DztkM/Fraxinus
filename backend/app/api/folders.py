@@ -28,6 +28,7 @@ async def create_folder(
     folder_id = uuid.uuid4()
     path = format_ltree(folder_id)
     
+    actual_access_level = 1
     if request.parent_id:
         parent_result = await db.execute(select(Folder).where(Folder.id == request.parent_id))
         parent_folder = parent_result.scalar_one_or_none()
@@ -38,6 +39,7 @@ async def create_folder(
             
         if parent_folder.path:
             path = f"{parent_folder.path}.{path}"
+        actual_access_level = parent_folder.actual_access_level
 
     new_folder = Folder(
         id=folder_id,
@@ -45,6 +47,7 @@ async def create_folder(
         parent_id=request.parent_id,
         path=path,
         author_id=user_id,
+        actual_access_level=actual_access_level,
     )
     db.add(new_folder)
     await db.commit()

@@ -36,6 +36,7 @@ async def init_upload(
     file_id = uuid.uuid4()
     path = str(file_id).replace("-", "_")
     
+    actual_access_level = 1
     if request.folder_id:
         folder_result = await db.execute(select(Folder).where(Folder.id == request.folder_id))
         folder = folder_result.scalar_one_or_none()
@@ -45,6 +46,7 @@ async def init_upload(
             raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
         if folder.path:
             path = f"{folder.path}.{path}"
+        actual_access_level = folder.actual_access_level
 
     internal_key = str(uuid.uuid4())
     
@@ -91,6 +93,7 @@ async def init_upload(
         path=path,
         uploader_id=user_id,
         status="pending",
+        actual_access_level=actual_access_level,
         physical_file_id=pf.id,
     )
     db.add(file_record)
