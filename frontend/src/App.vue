@@ -1,8 +1,19 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Show, SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/vue'
+import { Show, SignInButton, SignUpButton, UserButton, useAuth, useUser } from '@clerk/vue'
 
 const { getToken, isLoaded, isSignedIn } = useAuth()
+const { user } = useUser()
+
+const copyMyId = async () => {
+  if (!user.value?.id) return
+  try {
+    await navigator.clipboard.writeText(user.value.id)
+    alert('User ID copied to clipboard!')
+  } catch (err) {
+    console.error('Failed to copy ID', err)
+  }
+}
 const authCheckResult = ref<string | null>(null)
 const isLoading = ref(false)
 
@@ -44,7 +55,12 @@ const checkAuth = async () => {
           </div>
         </Show>
         <Show when="signed-in">
-          <UserButton />
+          <div class="user-actions">
+            <button class="btn btn-secondary btn-sm" @click="copyMyId" title="Copy my User ID">
+              📋 Copy My ID
+            </button>
+            <UserButton />
+          </div>
         </Show>
       </div>
     </header>
@@ -111,6 +127,12 @@ const checkAuth = async () => {
   gap: 0.5rem;
 }
 
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .btn {
   padding: 0.5rem 1rem;
   border: 1px solid transparent;
@@ -144,6 +166,11 @@ const checkAuth = async () => {
 
 .btn-secondary:hover:not(:disabled) {
   background-color: #f1f5f9;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
 }
 
 .app-main {
