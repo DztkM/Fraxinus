@@ -76,7 +76,7 @@ const checkAuth = async () => {
           <h1>Welcome to Fraxinus Storage</h1>
           <p>This is the frontend for the internal file gateway. Use the controls above to sign in or sign up.</p>
           
-          <div class="auth-check-section">
+          <!-- <div class="auth-check-section">
             <h2>Test Authentication</h2>
             <p>Click the button below to send a request to the backend with your Clerk token.</p>
             
@@ -87,7 +87,7 @@ const checkAuth = async () => {
             <div v-if="authCheckResult" class="result-box" :class="{ 'error': authCheckResult.startsWith('Error') || authCheckResult.startsWith('Request') }">
               {{ authCheckResult }}
             </div>
-          </div>
+          </div> -->
         </div>
       </Show>
     </main>
