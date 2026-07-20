@@ -33,3 +33,7 @@ class File(Base):
     physical_file: Mapped["PhysicalFile"] = relationship("PhysicalFile", back_populates="files")
     allowed_users: Mapped[list["FileAllowedUser"]] = relationship("FileAllowedUser", back_populates="file", cascade="all, delete-orphan")
     share_links: Mapped[list["ShareLink"]] = relationship("ShareLink", back_populates="file", cascade="all, delete-orphan")
+
+    @property
+    def author_id(self) -> str:
+        return self.uploader_id

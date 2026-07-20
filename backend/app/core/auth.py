@@ -32,7 +32,8 @@ async def get_current_user(
             token,
             signing_key.key,
             algorithms=["RS256"],
-            options={"verify_aud": False}
+            options={"verify_aud": False},
+            leeway=60
         )
         user_id = payload.get("sub")
         if not user_id:
@@ -43,10 +44,10 @@ async def get_current_user(
         return user_id
 
 
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.ExpiredSignatureError as e:
+        raise HTTPException(status_code=401, detail=f"Token has expired: {str(e)}")
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
     except jwt.PyJWKClientError:
         raise HTTPException(
             status_code=500, 

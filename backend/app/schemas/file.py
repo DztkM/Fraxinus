@@ -12,6 +12,10 @@ class FileUploadInitRequest(BaseModel):
 class FileUpdateRequest(BaseModel):
     original_name: str
 
+class FileAccessUpdateRequest(BaseModel):
+    set_access_level: int
+    allowed_users: list[str] | None = None
+
 class FileUploadInitResponse(BaseModel):
     file_id: uuid.UUID
     upload_id: str
@@ -30,6 +34,9 @@ class FileResponse(BaseModel):
     id: uuid.UUID
     original_name: str
     status: str
+    set_access_level: int
+    actual_access_level: int
+    author_id: str
     created_at: datetime
 
 class FileDownloadResponse(BaseModel):
