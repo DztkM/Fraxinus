@@ -6,6 +6,7 @@ export interface FileItem {
   status: string;
   set_access_level: number;
   actual_access_level: number;
+  author_id: string;
   created_at: string;
 }
 
@@ -16,6 +17,7 @@ export interface FolderItem {
   path: string | null;
   set_access_level: number;
   actual_access_level: number;
+  author_id: string;
   created_at: string;
 }
 

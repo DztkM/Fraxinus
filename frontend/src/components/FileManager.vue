@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuth } from '@clerk/vue'
+import { useAuth, useUser } from '@clerk/vue'
 import { 
   fetchFiles, 
   uploadFile, 
@@ -21,6 +21,7 @@ import {
 } from '../services/api'
 
 const { getToken, isSignedIn } = useAuth()
+const { user } = useUser()
 const route = useRoute()
 const router = useRouter()
 const isMounted = ref(false)
@@ -608,9 +609,9 @@ const formatDate = (dateString: string) => {
                 <button class="btn btn-action" @click="toggleMenu(folder.id, $event)">⋮</button>
                 <div v-if="activeMenuId === folder.id" class="dropdown-menu">
                   <button class="dropdown-item" @click="copyFolderLink(folder.id)">Copy Link</button>
-                  <button class="dropdown-item" @click="promptAccess('folder', folder.id, folder.name, folder.set_access_level)">Change Access</button>
-                  <button class="dropdown-item" @click="promptRename('folder', folder.id, folder.name)">Rename</button>
-                  <button class="dropdown-item text-red" @click="promptDelete('folder', folder.id, folder.name)">Delete</button>
+                  <button v-if="user?.id === folder.author_id" class="dropdown-item" @click="promptAccess('folder', folder.id, folder.name, folder.set_access_level)">Change Access</button>
+                  <button v-if="user?.id === folder.author_id" class="dropdown-item" @click="promptRename('folder', folder.id, folder.name)">Rename</button>
+                  <button v-if="user?.id === folder.author_id" class="dropdown-item text-red" @click="promptDelete('folder', folder.id, folder.name)">Delete</button>
                 </div>
               </div>
             </td>
@@ -641,9 +642,9 @@ const formatDate = (dateString: string) => {
                 <div v-if="activeMenuId === file.id" class="dropdown-menu">
                   <button class="dropdown-item" @click="triggerDownload(file.id)" :disabled="file.status !== 'completed'">Download</button>
                   <button class="dropdown-item" @click="copyFileLink(file.id)">Copy Link</button>
-                  <button class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
-                  <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
-                  <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
+                  <button v-if="user?.id === file.author_id" class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
+                  <button v-if="user?.id === file.author_id" class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
+                  <button v-if="user?.id === file.author_id" class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
                 </div>
               </div>
             </td>
@@ -702,9 +703,9 @@ const formatDate = (dateString: string) => {
                 <div v-if="activeMenuId === file.id" class="dropdown-menu">
                   <button class="dropdown-item" @click="triggerDownload(file.id)" :disabled="file.status !== 'completed'">Download</button>
                   <button class="dropdown-item" @click="copyFileLink(file.id)">Copy Link</button>
-                  <button class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
-                  <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
-                  <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
+                  <button v-if="user?.id === file.author_id" class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
+                  <button v-if="user?.id === file.author_id" class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
+                  <button v-if="user?.id === file.author_id" class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
                 </div>
               </div>
             </td>

@@ -23,6 +23,7 @@ class FolderResponse(BaseModel):
     path: str | None
     set_access_level: int
     actual_access_level: int
+    author_id: str
     created_at: datetime
 
 class FolderContentsResponse(BaseModel):
