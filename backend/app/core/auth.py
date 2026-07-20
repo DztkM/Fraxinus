@@ -3,9 +3,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from jwt import PyJWKClient
 
+from core.config import settings
 
-CLERK_FRONTEND_API = "https://relaxed-mustang-84.clerk.accounts.dev"
-JWKS_URL = f"https://relaxed-mustang-84.clerk.accounts.dev/.well-known/jwks.json"
+CLERK_FRONTEND_API = settings.CLERK_FRONTEND_API
+JWKS_URL = f"{CLERK_FRONTEND_API}/.well-known/jwks.json"
 
 jwks_client = PyJWKClient(JWKS_URL)
 

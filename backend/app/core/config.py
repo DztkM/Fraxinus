@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     MINIO_ROOT_PASSWORD: str = os.getenv("MINIO_ROOT_PASSWORD", "CHANGEMELATER")
     MINIO_BUCKET_NAME: str = os.getenv("MINIO_BUCKET_NAME", "fraxinus-files")
 
+    # Clerk
+    CLERK_FRONTEND_API: str = os.getenv("CLERK_FRONTEND_API", "https://relaxed-mustang-84.clerk.accounts.dev")
+
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True, extra="ignore")
 
 settings = Settings()
