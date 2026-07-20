@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Show, SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/vue'
+import FileManager from './components/FileManager.vue'
 
 const { getToken, isLoaded, isSignedIn } = useAuth()
 const authCheckResult = ref<string | null>(null)
@@ -50,26 +51,29 @@ const checkAuth = async () => {
     </header>
 
     <main class="app-main">
-      <div class="content-card">
-        <h1>Welcome to Fraxinus Storage</h1>
-        <p>This is the frontend for the internal file gateway. Use the controls above to sign in or sign up.</p>
-        
-        <div class="auth-check-section">
-          <h2>Test Authentication</h2>
-          <p>Click the button below to send a request to the backend with your Clerk token.</p>
+      <Show when="signed-in">
+        <FileManager />
+      </Show>
+      
+      <Show when="signed-out">
+        <div class="content-card">
+          <h1>Welcome to Fraxinus Storage</h1>
+          <p>This is the frontend for the internal file gateway. Use the controls above to sign in or sign up.</p>
           
-          <button @click="checkAuth" :disabled="isLoading || !isSignedIn" class="btn btn-primary">
-            {{ isLoading ? 'Checking...' : 'Check Auth' }}
-          </button>
-          
-          <div v-if="authCheckResult" class="result-box" :class="{ 'error': authCheckResult.startsWith('Error') || authCheckResult.startsWith('Request') }">
-            {{ authCheckResult }}
-          </div>
-          <div v-if="isLoaded && !isSignedIn" class="warning-text">
-            Please sign in to test the API.
+          <div class="auth-check-section">
+            <h2>Test Authentication</h2>
+            <p>Click the button below to send a request to the backend with your Clerk token.</p>
+            
+            <button @click="checkAuth" :disabled="isLoading" class="btn btn-primary">
+              {{ isLoading ? 'Checking...' : 'Check Auth' }}
+            </button>
+            
+            <div v-if="authCheckResult" class="result-box" :class="{ 'error': authCheckResult.startsWith('Error') || authCheckResult.startsWith('Request') }">
+              {{ authCheckResult }}
+            </div>
           </div>
         </div>
-      </div>
+      </Show>
     </main>
   </div>
 </template>
