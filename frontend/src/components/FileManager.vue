@@ -11,6 +11,8 @@ import {
   deleteFolder,
   renameFile,
   deleteFile,
+  updateFolderAccess,
+  updateFileAccess,
   type FileItem,
   type FolderItem 
 } from '../services/api'
@@ -56,6 +58,10 @@ const renameModal = ref<{ isOpen: boolean, type: ItemType, id: string, oldName: 
   isOpen: false, type: 'file', id: '', oldName: '', newName: '', error: null
 })
 
+const accessModal = ref<{ isOpen: boolean, type: ItemType, id: string, name: string, level: number, allowedUsers: string, error: string | null }>({
+  isOpen: false, type: 'file', id: '', name: '', level: 1, allowedUsers: '', error: null
+})
+
 // Click outside to close menu
 const closeMenu = () => {
   activeMenuId.value = null
@@ -75,6 +81,11 @@ const promptRename = (type: ItemType, id: string, oldName: string) => {
 const promptDelete = (type: ItemType, id: string, name: string) => {
   activeMenuId.value = null
   deleteModal.value = { isOpen: true, type, id, name, error: null }
+}
+
+const promptAccess = (type: ItemType, id: string, name: string, currentLevel: number) => {
+  activeMenuId.value = null
+  accessModal.value = { isOpen: true, type, id, name, level: currentLevel || 1, allowedUsers: '', error: null }
 }
 
 const confirmRename = async () => {
@@ -119,6 +130,36 @@ const confirmDelete = async () => {
     else await loadExplorer()
   } catch (error: any) {
     deleteModal.value.error = error.message
+  }
+}
+
+const confirmAccess = async () => {
+  const { type, id, level, allowedUsers } = accessModal.value
+  accessModal.value.error = null
+  
+  try {
+    const token = await getToken.value()
+    if (!token) throw new Error("No token available")
+    
+    let usersList: string[] | undefined
+    if (level === 2) {
+      usersList = allowedUsers.split(',').map(s => s.trim()).filter(Boolean)
+      if (usersList.length === 0) {
+        throw new Error("Please enter at least one user ID")
+      }
+    }
+    
+    if (type === 'folder') {
+      await updateFolderAccess(token, id, level, usersList)
+    } else {
+      await updateFileAccess(token, id, level, usersList)
+    }
+    
+    accessModal.value.isOpen = false
+    if (activeTab.value === 'all') await loadAllFiles()
+    else await loadExplorer()
+  } catch (error: any) {
+    accessModal.value.error = error.message
   }
 }
 
@@ -282,6 +323,13 @@ const triggerDownload = async (fileId: string) => {
   }
 }
 
+const getAccessLabel = (level: number) => {
+  if (level === 1) return 'Private'
+  if (level === 2) return 'Restricted'
+  if (level === 3) return 'Public'
+  return 'Unknown'
+}
+
 const formatDate = (dateString: string) => {
   const date = new Date(dateString)
   return new Intl.DateTimeFormat('en-US', {
@@ -418,9 +466,9 @@ const formatDate = (dateString: string) => {
             <td><span class="status-badge active">Directory</span></td>
             <td>
               <div class="access-info">
-                <span title="Set Access Level" class="access-badge set">{{ folder.set_access_level }}</span>
+                <span title="Set Access Level" class="access-badge set">{{ getAccessLabel(folder.set_access_level) }}</span>
                 <span class="access-arrow">→</span>
-                <span title="Actual Access Level" class="access-badge actual">{{ folder.actual_access_level }}</span>
+                <span title="Actual Access Level" class="access-badge actual">{{ getAccessLabel(folder.actual_access_level) }}</span>
               </div>
             </td>
             <td class="date-col">{{ formatDate(folder.created_at) }}</td>
@@ -428,6 +476,7 @@ const formatDate = (dateString: string) => {
               <div class="dropdown-container" @click.stop>
                 <button class="btn btn-action" @click="toggleMenu(folder.id, $event)">⋮</button>
                 <div v-if="activeMenuId === folder.id" class="dropdown-menu">
+                  <button class="dropdown-item" @click="promptAccess('folder', folder.id, folder.name, folder.set_access_level)">Change Access</button>
                   <button class="dropdown-item" @click="promptRename('folder', folder.id, folder.name)">Rename</button>
                   <button class="dropdown-item text-red" @click="promptDelete('folder', folder.id, folder.name)">Delete</button>
                 </div>
@@ -448,9 +497,9 @@ const formatDate = (dateString: string) => {
             </td>
             <td>
               <div class="access-info">
-                <span title="Set Access Level" class="access-badge set">{{ file.set_access_level }}</span>
+                <span title="Set Access Level" class="access-badge set">{{ getAccessLabel(file.set_access_level) }}</span>
                 <span class="access-arrow">→</span>
-                <span title="Actual Access Level" class="access-badge actual">{{ file.actual_access_level }}</span>
+                <span title="Actual Access Level" class="access-badge actual">{{ getAccessLabel(file.actual_access_level) }}</span>
               </div>
             </td>
             <td class="date-col">{{ formatDate(file.created_at) }}</td>
@@ -459,6 +508,7 @@ const formatDate = (dateString: string) => {
                 <button class="btn btn-action" @click="toggleMenu(file.id, $event)">⋮</button>
                 <div v-if="activeMenuId === file.id" class="dropdown-menu">
                   <button class="dropdown-item" @click="triggerDownload(file.id)" :disabled="file.status !== 'completed'">Download</button>
+                  <button class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
                   <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
                   <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
                 </div>
@@ -507,9 +557,9 @@ const formatDate = (dateString: string) => {
             </td>
             <td>
               <div class="access-info">
-                <span title="Set Access Level" class="access-badge set">{{ file.set_access_level }}</span>
+                <span title="Set Access Level" class="access-badge set">{{ getAccessLabel(file.set_access_level) }}</span>
                 <span class="access-arrow">→</span>
-                <span title="Actual Access Level" class="access-badge actual">{{ file.actual_access_level }}</span>
+                <span title="Actual Access Level" class="access-badge actual">{{ getAccessLabel(file.actual_access_level) }}</span>
               </div>
             </td>
             <td class="date-col">{{ formatDate(file.created_at) }}</td>
@@ -518,6 +568,7 @@ const formatDate = (dateString: string) => {
                 <button class="btn btn-action" @click="toggleMenu(file.id, $event)">⋮</button>
                 <div v-if="activeMenuId === file.id" class="dropdown-menu">
                   <button class="dropdown-item" @click="triggerDownload(file.id)" :disabled="file.status !== 'completed'">Download</button>
+                  <button class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
                   <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
                   <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
                 </div>
@@ -529,6 +580,7 @@ const formatDate = (dateString: string) => {
     </div>
     
     <!-- MODALS -->
+    <!-- Delete Modal -->
     <div v-if="deleteModal.isOpen" class="modal-overlay" @click="deleteModal.isOpen = false">
       <div class="modal-content" @click.stop>
         <h3>Delete {{ deleteModal.type === 'folder' ? 'Folder' : 'File' }}</h3>
@@ -546,6 +598,7 @@ const formatDate = (dateString: string) => {
       </div>
     </div>
 
+    <!-- Rename Modal -->
     <div v-if="renameModal.isOpen" class="modal-overlay" @click="renameModal.isOpen = false">
       <div class="modal-content" @click.stop>
         <h3>Rename {{ renameModal.type === 'folder' ? 'Folder' : 'File' }}</h3>
@@ -564,6 +617,57 @@ const formatDate = (dateString: string) => {
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="renameModal.isOpen = false">Cancel</button>
           <button class="btn btn-primary" @click="confirmRename" :disabled="!renameModal.newName.trim()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Access Modal -->
+    <div v-if="accessModal.isOpen" class="modal-overlay" @click="accessModal.isOpen = false">
+      <div class="modal-content" @click.stop>
+        <h3>Change Access</h3>
+        <p class="text-sm text-gray mb-4">Set access level for <strong>{{ accessModal.name }}</strong>.</p>
+        
+        <div class="access-options">
+          <label class="radio-label">
+            <input type="radio" :value="1" v-model="accessModal.level" />
+            <div class="radio-text">
+              <strong>Private</strong>
+              <p>Only you can view or download.</p>
+            </div>
+          </label>
+          <label class="radio-label">
+            <input type="radio" :value="2" v-model="accessModal.level" />
+            <div class="radio-text">
+              <strong>Restricted (Selected Users)</strong>
+              <p>You and specific users can view or download.</p>
+            </div>
+          </label>
+          <label class="radio-label">
+            <input type="radio" :value="3" v-model="accessModal.level" />
+            <div class="radio-text">
+              <strong>Public</strong>
+              <p>Anyone with the link can view or download.</p>
+            </div>
+          </label>
+        </div>
+
+        <div v-if="accessModal.level === 2" class="allowed-users-input">
+          <label>Allowed User IDs (comma separated)</label>
+          <textarea 
+            v-model="accessModal.allowedUsers"
+            class="input-text modal-input" 
+            placeholder="user_2X..., user_3Y..."
+            rows="3"
+          ></textarea>
+        </div>
+        
+        <div v-if="accessModal.error" class="modal-error">
+          {{ accessModal.error }}
+        </div>
+        
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="accessModal.isOpen = false">Cancel</button>
+          <button class="btn btn-primary" @click="confirmAccess">Save Changes</button>
         </div>
       </div>
     </div>
@@ -791,6 +895,7 @@ const formatDate = (dateString: string) => {
   border-radius: 4px;
   font-size: 0.875rem;
   outline: none;
+  font-family: inherit;
 }
 .input-text:focus {
   border-color: #3b82f6;
@@ -901,21 +1006,23 @@ const formatDate = (dateString: string) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .access-badge.set {
-  background-color: #e0e7ff;
-  color: #3730a3;
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .access-badge.actual {
-  background-color: #ede9fe;
-  color: #5b21b6;
+  background-color: #f8fafc;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
 }
 
 .access-arrow {
@@ -955,7 +1062,7 @@ const formatDate = (dateString: string) => {
   border-radius: 6px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   z-index: 50;
-  min-width: 120px;
+  min-width: 150px;
   overflow: hidden;
   text-align: left;
 }
@@ -1009,7 +1116,7 @@ const formatDate = (dateString: string) => {
   border-radius: 8px;
   padding: 1.5rem;
   width: 100%;
-  max-width: 400px;
+  max-width: 450px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 
@@ -1022,6 +1129,10 @@ const formatDate = (dateString: string) => {
 .modal-content p {
   color: #334155;
   margin-bottom: 1.5rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem !important;
 }
 
 .text-sm {
@@ -1037,6 +1148,10 @@ const formatDate = (dateString: string) => {
   margin-bottom: 1.5rem;
 }
 
+textarea.modal-input {
+  resize: vertical;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -1050,5 +1165,51 @@ const formatDate = (dateString: string) => {
   color: #991b1b;
   border-radius: 4px;
   font-size: 0.875rem;
+}
+
+.access-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.radio-label {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.radio-label:hover {
+  background-color: #f8fafc;
+}
+
+.radio-label input[type="radio"] {
+  margin-top: 0.25rem;
+}
+
+.radio-text strong {
+  display: block;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.radio-text p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.allowed-users-input label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 0.5rem;
 }
 </style>

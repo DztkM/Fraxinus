@@ -262,3 +262,55 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
     throw new Error(detail);
   }
 }
+
+export async function updateFolderAccess(
+  token: string, 
+  folderId: string, 
+  level: number, 
+  allowedUsers?: string[]
+): Promise<FolderItem> {
+  const body: any = { set_access_level: level };
+  if (level === 2 && allowedUsers) {
+    body.allowed_users = allowedUsers;
+  }
+  
+  const res = await fetch(`${API_BASE_URL}/api/folders/${folderId}/access`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const detail = await extractErrorMessage(res);
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+export async function updateFileAccess(
+  token: string, 
+  fileId: string, 
+  level: number, 
+  allowedUsers?: string[]
+): Promise<FileItem> {
+  const body: any = { set_access_level: level };
+  if (level === 2 && allowedUsers) {
+    body.allowed_users = allowedUsers;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/files/${fileId}/access`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const detail = await extractErrorMessage(res);
+    throw new Error(detail);
+  }
+  return res.json();
+}
