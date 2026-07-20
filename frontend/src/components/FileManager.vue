@@ -296,6 +296,11 @@ const navigateToFolder = (folderId: string, folderName: string, resetBreadcrumbs
   }
 }
 
+const navigateToFile = (fileId: string) => {
+  const url = router.resolve({ name: 'file-download', params: { id: fileId } }).href
+  window.open(url, '_blank')
+}
+
 const navigateToBreadcrumb = (index: number) => {
   if (index === breadcrumbs.value.length - 1) return // Already there
   const target = breadcrumbs.value[index]
@@ -612,7 +617,7 @@ const formatDate = (dateString: string) => {
           </tr>
           
           <!-- Files -->
-          <tr v-for="file in explorerFiles" :key="'file-'+file.id" class="file-row">
+          <tr v-for="file in explorerFiles" :key="'file-'+file.id" class="file-row" @click="navigateToFile(file.id)">
             <td class="file-name">
               <span class="file-icon">📄</span>
               {{ file.original_name }}
@@ -673,7 +678,7 @@ const formatDate = (dateString: string) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="file in allFiles" :key="file.id" class="file-row">
+          <tr v-for="file in allFiles" :key="file.id" class="file-row" @click="navigateToFile(file.id)">
             <td class="file-name">
               <span class="file-icon">📄</span>
               {{ file.original_name }}
@@ -739,7 +744,7 @@ const formatDate = (dateString: string) => {
             :key="'shared-'+item.id" 
             class="file-row"
             :class="{ 'folder-row': item.type === 'folder' }"
-            @click="item.type === 'folder' ? navigateToFolder(item.id, item.name, true) : null"
+            @click="item.type === 'folder' ? navigateToFolder(item.id, item.name, true) : navigateToFile(item.id)"
           >
             <td class="file-name">
               <span v-if="item.type === 'folder'" class="file-icon folder-icon">📁</span>
@@ -1137,7 +1142,9 @@ const formatDate = (dateString: string) => {
 }
 
 .file-row {
+  border-bottom: 1px solid #e2e8f0;
   transition: background-color 0.15s;
+  cursor: pointer;
 }
 .file-row:last-child td {
   border-bottom: none;
