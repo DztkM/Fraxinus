@@ -24,6 +24,15 @@ export interface FolderContents {
   files: FileItem[];
 }
 
+export interface SharedItem {
+  id: string;
+  name: string;
+  author_id: string;
+  status: string | null;
+  created_at: string;
+  type: 'file' | 'folder';
+}
+
 async function extractErrorMessage(res: Response): Promise<string> {
   try {
     const data = await res.json();
@@ -315,4 +324,19 @@ export async function updateFileAccess(
     throw new Error(detail);
   }
   return res.json();
+}
+
+export async function fetchSharedItems(token: string): Promise<SharedItem[]> {
+  const res = await fetch(`${API_BASE_URL}/api/shared/`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  
+  if (!res.ok) {
+    const errText = await extractErrorMessage(res);
+    throw new Error(`Failed to fetch shared items: ${errText}`);
+  }
+  const data = await res.json();
+  return data.items;
 }

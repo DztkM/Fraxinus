@@ -14,16 +14,22 @@ import {
   deleteFile,
   updateFolderAccess,
   updateFileAccess,
+  fetchSharedItems,
   type FileItem,
-  type FolderItem 
+  type FolderItem,
+  type SharedItem
 } from '../services/api'
 
 const { getToken, isSignedIn } = useAuth()
 const route = useRoute()
 const router = useRouter()
 
-type Tab = 'explorer' | 'all'
+type Tab = 'explorer' | 'all' | 'shared'
 const activeTab = ref<Tab>((route.name === 'folder' || route.name === 'home') ? 'explorer' : 'all')
+
+// Shared files state
+const sharedItems = ref<SharedItem[]>([])
+const isLoadingShared = ref(false)
 
 // All files state
 const allFiles = ref<FileItem[]>([])
@@ -166,6 +172,23 @@ const confirmAccess = async () => {
   }
 }
 
+const loadSharedItems = async () => {
+  if (!isSignedIn.value) return
+  isLoadingShared.value = true
+  errorMsg.value = null
+  
+  try {
+    const token = await getToken.value()
+    if (!token) throw new Error("No token available")
+    sharedItems.value = await fetchSharedItems(token)
+  } catch (error: any) {
+    errorMsg.value = `Failed to load shared items: ${error.message}`
+    console.error(error)
+  } finally {
+    isLoadingShared.value = false
+  }
+}
+
 const loadAllFiles = async () => {
   if (!isSignedIn.value) return
   isLoadingAllFiles.value = true
@@ -234,6 +257,8 @@ const handleTabChange = (tab: Tab) => {
   activeTab.value = tab
   if (tab === 'all') {
     loadAllFiles()
+  } else if (tab === 'shared') {
+    loadSharedItems()
   } else {
     loadExplorer()
   }
@@ -418,10 +443,17 @@ const formatDate = (dateString: string) => {
         >
           All Uploads
         </button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'shared' }" 
+          @click="handleTabChange('shared')"
+        >
+          Shared
+        </button>
       </div>
       <button 
-        @click="activeTab === 'all' ? loadAllFiles() : loadExplorer()" 
-        :disabled="(activeTab === 'all' ? isLoadingAllFiles : isLoadingExplorer) || isUploading" 
+        @click="activeTab === 'all' ? loadAllFiles() : activeTab === 'shared' ? loadSharedItems() : loadExplorer()" 
+        :disabled="(activeTab === 'all' ? isLoadingAllFiles : activeTab === 'shared' ? isLoadingShared : isLoadingExplorer) || isUploading" 
         class="btn btn-icon" 
         title="Refresh"
       >
@@ -631,6 +663,65 @@ const formatDate = (dateString: string) => {
                   <button class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
                   <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
                   <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SHARED TAB -->
+    <div v-else-if="activeTab === 'shared'" class="file-list-container">
+      <div class="explorer-toolbar">
+        <h3>Shared with me</h3>
+      </div>
+
+      <div v-if="isLoadingShared && sharedItems.length === 0" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading shared items...</p>
+      </div>
+      
+      <div v-else-if="sharedItems.length === 0" class="empty-state">
+        <p>No files or folders have been shared with you.</p>
+      </div>
+      
+      <table v-else class="file-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type / Status</th>
+            <th>Author ID</th>
+            <th>Created At</th>
+            <th class="actions-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr 
+            v-for="item in sharedItems" 
+            :key="'shared-'+item.id" 
+            class="file-row"
+            :class="{ 'folder-row': item.type === 'folder' }"
+            @click="item.type === 'folder' ? navigateToFolder(item.id, item.name) : null"
+          >
+            <td class="file-name">
+              <span v-if="item.type === 'folder'" class="file-icon folder-icon">📁</span>
+              <span v-else class="file-icon">📄</span>
+              {{ item.name }}
+            </td>
+            <td>
+              <span v-if="item.type === 'folder'" class="status-badge active">Directory</span>
+              <span v-else class="status-badge" :class="item.status?.toLowerCase() || ''">{{ item.status }}</span>
+            </td>
+            <td class="author-col" :title="item.author_id">{{ item.author_id.substring(0, 10) }}...</td>
+            <td class="date-col">{{ formatDate(item.created_at) }}</td>
+            <td class="actions-col">
+              <div class="dropdown-container" @click.stop>
+                <button class="btn btn-action" @click="toggleMenu('shared-' + item.id, $event)">⋮</button>
+                <div v-if="activeMenuId === 'shared-' + item.id" class="dropdown-menu">
+                  <button v-if="item.type === 'file'" class="dropdown-item" @click="triggerDownload(item.id)" :disabled="item.status !== 'completed'">Download</button>
+                  <button v-if="item.type === 'file'" class="dropdown-item" @click="copyFileLink(item.id)">Copy Link</button>
+                  <button v-if="item.type === 'folder'" class="dropdown-item" @click="copyFolderLink(item.id)">Copy Link</button>
                 </div>
               </div>
             </td>
