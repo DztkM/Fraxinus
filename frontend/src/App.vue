@@ -47,6 +47,7 @@ const checkAuth = async () => {
   <div class="app-container">
     <header class="app-header">
       <div class="logo">Fraxinus Storage</div>
+      <div id="header-controls" class="header-controls"></div>
       <div class="auth-controls">
         <Show when="signed-out">
           <div class="auth-buttons">
@@ -107,7 +108,14 @@ const checkAuth = async () => {
   padding: 1rem 2rem;
   background-color: var(--color-background);
   border-bottom: 1px solid var(--color-border);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.header-controls {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
 }
 
 .logo {

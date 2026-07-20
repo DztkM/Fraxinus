@@ -23,6 +23,7 @@ import {
 const { getToken, isSignedIn } = useAuth()
 const route = useRoute()
 const router = useRouter()
+const isMounted = ref(false)
 
 type Tab = 'explorer' | 'all' | 'shared'
 const activeTab = ref<Tab>((route.name === 'folder' || route.name === 'home') ? 'explorer' : 'all')
@@ -330,6 +331,7 @@ const handleCreateFolder = async () => {
 }
 
 onMounted(() => {
+  isMounted.value = true
   if (route.name === 'folder') {
     currentFolderId.value = route.params.id as string
     breadcrumbs.value = [{ id: currentFolderId.value, name: 'Loading...' }]
@@ -462,8 +464,7 @@ const formatDate = (dateString: string) => {
 
 <template>
   <div class="file-manager">
-    <div class="manager-header">
-      <h2>Your Storage</h2>
+    <Teleport to="#header-controls" v-if="isMounted">
       <div class="tabs">
         <button 
           class="tab-btn" 
@@ -495,7 +496,7 @@ const formatDate = (dateString: string) => {
       >
         ↻ Refresh
       </button>
-    </div>
+    </Teleport>
     
     <div v-if="errorMsg" class="error-banner">
       {{ errorMsg }}
