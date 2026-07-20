@@ -66,6 +66,16 @@ services:
       - minio2
     restart: always
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - fastapi
+    restart: always
+
 volumes:
   postgres_data:
   minio_data1:
