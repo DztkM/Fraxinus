@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Show, SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/vue'
-import FileManager from './components/FileManager.vue'
 
 const { getToken, isLoaded, isSignedIn } = useAuth()
 const authCheckResult = ref<string | null>(null)
@@ -52,7 +51,7 @@ const checkAuth = async () => {
 
     <main class="app-main">
       <Show when="signed-in">
-        <FileManager />
+        <router-view />
       </Show>
       
       <Show when="signed-out">

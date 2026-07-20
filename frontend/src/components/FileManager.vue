@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@clerk/vue'
 import { 
   fetchFiles, 
@@ -18,9 +19,11 @@ import {
 } from '../services/api'
 
 const { getToken, isSignedIn } = useAuth()
+const route = useRoute()
+const router = useRouter()
 
 type Tab = 'explorer' | 'all'
-const activeTab = ref<Tab>('explorer')
+const activeTab = ref<Tab>((route.name === 'folder' || route.name === 'home') ? 'explorer' : 'all')
 
 // All files state
 const allFiles = ref<FileItem[]>([])
@@ -30,7 +33,7 @@ const isLoadingAllFiles = ref(false)
 const explorerFolders = ref<FolderItem[]>([])
 const explorerFiles = ref<FileItem[]>([])
 const isLoadingExplorer = ref(false)
-const currentFolderId = ref<string>('root')
+const currentFolderId = ref<string>((route.params.id as string) || 'root')
 const breadcrumbs = ref<{ id: string, name: string }[]>([
   { id: 'root', name: 'Root' }
 ])
@@ -192,6 +195,12 @@ const loadExplorer = async () => {
     const contents = await fetchFolderContents(token, currentFolderId.value)
     explorerFolders.value = contents.folders
     explorerFiles.value = contents.files
+    
+    // Update placeholder breadcrumb if navigating via URL directly
+    const lastCrumb = breadcrumbs.value[breadcrumbs.value.length - 1];
+    if (lastCrumb && lastCrumb.name === 'Loading...') {
+      lastCrumb.name = 'Folder';
+    }
   } catch (error: any) {
     errorMsg.value = `Failed to load folder: ${error.message}`
     console.error(error)
@@ -199,6 +208,27 @@ const loadExplorer = async () => {
     isLoadingExplorer.value = false
   }
 }
+
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (route.name === 'folder') {
+      currentFolderId.value = (newId as string) || 'root'
+      activeTab.value = 'explorer'
+      if (currentFolderId.value !== 'root' && breadcrumbs.value.length === 1) {
+        breadcrumbs.value.push({ id: currentFolderId.value, name: 'Loading...' })
+      } else if (currentFolderId.value === 'root') {
+        breadcrumbs.value = [{ id: 'root', name: 'Root' }]
+      }
+      loadExplorer()
+    } else if (route.name === 'home') {
+      currentFolderId.value = 'root'
+      activeTab.value = 'explorer'
+      breadcrumbs.value = [{ id: 'root', name: 'Root' }]
+      loadExplorer()
+    }
+  }
+)
 
 const handleTabChange = (tab: Tab) => {
   activeTab.value = tab
@@ -210,9 +240,8 @@ const handleTabChange = (tab: Tab) => {
 }
 
 const navigateToFolder = (folderId: string, folderName: string) => {
-  currentFolderId.value = folderId
   breadcrumbs.value.push({ id: folderId, name: folderName })
-  loadExplorer()
+  router.push({ name: 'folder', params: { id: folderId } })
 }
 
 const navigateToBreadcrumb = (index: number) => {
@@ -220,8 +249,12 @@ const navigateToBreadcrumb = (index: number) => {
   const target = breadcrumbs.value[index]
   if (!target) return
   breadcrumbs.value = breadcrumbs.value.slice(0, index + 1)
-  currentFolderId.value = target.id
-  loadExplorer()
+  
+  if (target.id === 'root') {
+    router.push({ name: 'home' })
+  } else {
+    router.push({ name: 'folder', params: { id: target.id } })
+  }
 }
 
 const handleCreateFolder = async () => {
