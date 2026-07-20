@@ -356,6 +356,30 @@ const triggerDownload = async (fileId: string) => {
   }
 }
 
+const copyFileLink = async (fileId: string) => {
+  activeMenuId.value = null
+  const link = `${window.location.origin}/files/${fileId}`
+  try {
+    await navigator.clipboard.writeText(link)
+    alert('Link copied to clipboard!')
+  } catch (err) {
+    console.error('Failed to copy link', err)
+    alert('Failed to copy link')
+  }
+}
+
+const copyFolderLink = async (folderId: string) => {
+  activeMenuId.value = null
+  const link = `${window.location.origin}/folders/${folderId}`
+  try {
+    await navigator.clipboard.writeText(link)
+    alert('Link copied to clipboard!')
+  } catch (err) {
+    console.error('Failed to copy link', err)
+    alert('Failed to copy link')
+  }
+}
+
 const getAccessLabel = (level: number) => {
   if (level === 1) return 'Private'
   if (level === 2) return 'Restricted'
@@ -509,6 +533,7 @@ const formatDate = (dateString: string) => {
               <div class="dropdown-container" @click.stop>
                 <button class="btn btn-action" @click="toggleMenu(folder.id, $event)">⋮</button>
                 <div v-if="activeMenuId === folder.id" class="dropdown-menu">
+                  <button class="dropdown-item" @click="copyFolderLink(folder.id)">Copy Link</button>
                   <button class="dropdown-item" @click="promptAccess('folder', folder.id, folder.name, folder.set_access_level)">Change Access</button>
                   <button class="dropdown-item" @click="promptRename('folder', folder.id, folder.name)">Rename</button>
                   <button class="dropdown-item text-red" @click="promptDelete('folder', folder.id, folder.name)">Delete</button>
@@ -541,6 +566,7 @@ const formatDate = (dateString: string) => {
                 <button class="btn btn-action" @click="toggleMenu(file.id, $event)">⋮</button>
                 <div v-if="activeMenuId === file.id" class="dropdown-menu">
                   <button class="dropdown-item" @click="triggerDownload(file.id)" :disabled="file.status !== 'completed'">Download</button>
+                  <button class="dropdown-item" @click="copyFileLink(file.id)">Copy Link</button>
                   <button class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
                   <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
                   <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>
@@ -601,6 +627,7 @@ const formatDate = (dateString: string) => {
                 <button class="btn btn-action" @click="toggleMenu(file.id, $event)">⋮</button>
                 <div v-if="activeMenuId === file.id" class="dropdown-menu">
                   <button class="dropdown-item" @click="triggerDownload(file.id)" :disabled="file.status !== 'completed'">Download</button>
+                  <button class="dropdown-item" @click="copyFileLink(file.id)">Copy Link</button>
                   <button class="dropdown-item" @click="promptAccess('file', file.id, file.original_name, file.set_access_level)">Change Access</button>
                   <button class="dropdown-item" @click="promptRename('file', file.id, file.original_name)">Rename</button>
                   <button class="dropdown-item text-red" @click="promptDelete('file', file.id, file.original_name)">Delete</button>

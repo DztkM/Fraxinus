@@ -89,7 +89,7 @@ export async function createFolder(token: string, name: string, parentId?: strin
   return res.json();
 }
 
-export async function downloadFile(token: string, fileId: string): Promise<void> {
+export async function downloadFile(token: string, fileId: string): Promise<string> {
   const res = await fetch(`${API_BASE_URL}/api/files/${fileId}/download`, {
     headers: {
       Authorization: `Bearer ${token}`
@@ -113,6 +113,8 @@ export async function downloadFile(token: string, fileId: string): Promise<void>
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  
+  return url;
 }
 
 export async function uploadFile(

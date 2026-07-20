@@ -11,6 +11,7 @@ const { getToken, isSignedIn } = useAuth()
 const fileId = route.params.id as string
 const status = ref<'initializing' | 'downloading' | 'success' | 'error'>('initializing')
 const errorMsg = ref<string | null>(null)
+const downloadUrl = ref<string | null>(null)
 
 const initiateDownload = async () => {
   if (!isSignedIn.value) return
@@ -20,7 +21,8 @@ const initiateDownload = async () => {
     const token = await getToken.value()
     if (!token) throw new Error("No token available")
     
-    await downloadFile(token, fileId)
+    const url = await downloadFile(token, fileId)
+    downloadUrl.value = url
     status.value = 'success'
   } catch (error: any) {
     status.value = 'error'
@@ -52,20 +54,6 @@ const goHome = () => {
 
 <template>
   <div class="download-page">
-    <header class="app-header">
-      <div class="logo">Fraxinus Storage</div>
-      <div class="auth-controls">
-        <Show when="signed-out">
-          <div class="auth-buttons">
-            <SignInButton mode="modal" class="btn btn-primary" />
-            <SignUpButton mode="modal" class="btn btn-secondary" />
-          </div>
-        </Show>
-        <Show when="signed-in">
-          <UserButton />
-        </Show>
-      </div>
-    </header>
 
     <main class="download-main">
       <div class="download-card">
@@ -89,12 +77,15 @@ const goHome = () => {
           </div>
           
           <div v-else-if="status === 'success'" class="status-box success">
-            <p>✅ Download started!</p>
-            <p class="text-sm">If your download didn't start automatically, please check your browser settings.</p>
+            <p>Download started!</p>
+            <p class="text-sm" v-if="downloadUrl">
+              If your download didn't start automatically, 
+              <a :href="downloadUrl" target="_blank" class="download-link">click here to download</a>.
+            </p>
           </div>
           
           <div v-else-if="status === 'error'" class="status-box error">
-            <p>❌ <strong>Error:</strong> {{ errorMsg }}</p>
+            <p><strong>Error:</strong> {{ errorMsg }}</p>
           </div>
         </Show>
         
@@ -115,31 +106,6 @@ const goHome = () => {
   background-color: var(--color-background-soft);
 }
 
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background-color: var(--color-background);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.logo {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: var(--color-heading);
-}
-
-.auth-controls {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.auth-buttons {
-  display: flex;
-  gap: 0.5rem;
-}
 
 .download-main {
   flex: 1;
@@ -257,5 +223,14 @@ h2 {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.download-link {
+  color: #166534;
+  font-weight: 500;
+  text-decoration: underline;
+}
+.download-link:hover {
+  color: #14532d;
 }
 </style>
