@@ -5,7 +5,7 @@ import requests
 
 CHUNK_SIZE = 5 * 1024 * 1024  # 5Mb is minimum for MinIO multipart
 
-def test_multipart_upload(token: str, file_path: str):
+def test_multipart_upload(token: str, file_path: str, folder_id: str = None):
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
         return
@@ -19,15 +19,19 @@ def test_multipart_upload(token: str, file_path: str):
     }
 
     print(f"1. Initiating upload for {file_name} ({file_size} bytes, {parts_count} parts)...")
+    json_payload = {
+        "original_name": file_name,
+        "size": file_size,
+        "mime_type": "application/octet-stream",
+        "parts_count": parts_count
+    }
+    if folder_id:
+        json_payload["folder_id"] = folder_id
+
     init_res = requests.post(
         "http://127.0.0.1:8000/api/files/upload/init",
         headers=headers,
-        json={
-            "original_name": file_name,
-            "size": file_size,
-            "mime_type": "application/octet-stream",
-            "parts_count": parts_count
-        }
+        json=json_payload
     )
 
     if init_res.status_code != 200:
@@ -81,10 +85,11 @@ def test_multipart_upload(token: str, file_path: str):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: uv run python test_upload.py <jwt_token> <file_path>")
+        print("Usage: uv run python test_upload.py <jwt_token> <file_path> [folder_id]")
         sys.exit(1)
         
     token = sys.argv[1]
     file_path = sys.argv[2]
+    folder_id = sys.argv[3] if len(sys.argv) > 3 else None
     
-    test_multipart_upload(token, file_path)
+    test_multipart_upload(token, file_path, folder_id)

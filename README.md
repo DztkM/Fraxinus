@@ -13,13 +13,14 @@ cp .env.example .env
 You can run the application in either Production or Development mode.
 
 #### Production Mode
-To spin up the entire stack using Docker:
+To spin up the entire stack (Database, MinIO, FastAPI Backend, and Vue 3 Frontend) using Docker:
 ```bash
-docker compose -f compose.yaml up -d
+docker compose -f compose.yaml up -d --build
 ```
+*Note: The frontend will be automatically built and served at `http://localhost:5173`.*
 
 #### Development Mode
-For local development with hot-reloading for the FastAPI backend:
+For local development with hot-reloading for the FastAPI backend and Vue frontend:
 
 1. Start the dependent services (Database, MinIO, etc.):
    ```bash
@@ -34,14 +35,22 @@ For local development with hot-reloading for the FastAPI backend:
    ```bash
    uv run alembic upgrade head
    ```
-4. Run the backend locally:
+4. Run the backend locally (starts on port 8000):
    ```bash
    uv run fastapi dev app/main.py 
    ```
+5. Setup and run the frontend locally:
+   ```bash
+   cd ../frontend
+   npm install
+   npm run dev
+   ```
+   *(The frontend will start on port 5173)*
 
 ---
 
 ## Useful Links
+- **Frontend Web UI:** [http://localhost:5173](http://localhost:5173)
 - **FastAPI Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
 - **MinIO WebUI:** [http://127.0.0.1:9001/](http://127.0.0.1:9001/)
 
@@ -110,7 +119,7 @@ To test multipart upload and file endpoints a test script is provided.
 3. Run the test script from the `backend` folder:
 ```bash
 cd backend
-uv run python scripts/test_upload.py "<YOUR_JWT_TOKEN>" "path/to/any/file.jpg"
+uv run python scripts/test_upload.py "<YOUR_JWT_TOKEN>" "path/to/any/file.jpg" "[OPTIONAL]folder_id"
 ```
 This script will:
 - Contact `/api/files/upload/init` to create DB records and get pre-signed MinIO URLs for 5MB chunks.

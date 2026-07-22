@@ -3,9 +3,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from jwt import PyJWKClient
 
+from core.config import settings
 
-CLERK_FRONTEND_API = "https://relaxed-mustang-84.clerk.accounts.dev"
-JWKS_URL = f"https://relaxed-mustang-84.clerk.accounts.dev/.well-known/jwks.json"
+CLERK_FRONTEND_API = settings.CLERK_FRONTEND_API
+JWKS_URL = f"{CLERK_FRONTEND_API}/.well-known/jwks.json"
 
 jwks_client = PyJWKClient(JWKS_URL)
 
@@ -32,7 +33,8 @@ async def get_current_user(
             token,
             signing_key.key,
             algorithms=["RS256"],
-            options={"verify_aud": False}
+            options={"verify_aud": False},
+            leeway=60
         )
         user_id = payload.get("sub")
         if not user_id:
@@ -43,10 +45,10 @@ async def get_current_user(
         return user_id
 
 
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.ExpiredSignatureError as e:
+        raise HTTPException(status_code=401, detail=f"Token has expired: {str(e)}")
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
     except jwt.PyJWKClientError:
         raise HTTPException(
             status_code=500, 

@@ -10,14 +10,19 @@ from core.database import get_db
 from core.minio import get_s3_client
 from core.auth import get_current_user
 from models.file import File
+from models.folder import Folder
 from models.physical_file import PhysicalFile
+from models.permissions import FileAllowedUser, FolderAllowedUser
 from schemas.file import (
     FileUploadInitRequest,
     FileUploadInitResponse,
     FileUploadCompleteRequest,
     FileResponse,
     FileDownloadResponse,
+    FileUpdateRequest,
+    FileAccessUpdateRequest,
 )
+from sqlalchemy import delete
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -28,6 +33,21 @@ async def init_upload(
     db: AsyncSession = Depends(get_db),
     s3: Any = Depends(get_s3_client),
 ):
+    file_id = uuid.uuid4()
+    path = str(file_id).replace("-", "_")
+    
+    actual_access_level = 1
+    if request.folder_id:
+        folder_result = await db.execute(select(Folder).where(Folder.id == request.folder_id))
+        folder = folder_result.scalar_one_or_none()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found")
+        if folder.author_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        if folder.path:
+            path = f"{folder.path}.{path}"
+        actual_access_level = folder.actual_access_level
+
     internal_key = str(uuid.uuid4())
     
     # Start multipart upload in MinIO
@@ -67,9 +87,13 @@ async def init_upload(
     await db.flush()  # to get pf.id
     
     file_record = File(
+        id=file_id,
+        folder_id=request.folder_id,
         original_name=request.original_name,
+        path=path,
         uploader_id=user_id,
         status="pending",
+        actual_access_level=actual_access_level,
         physical_file_id=pf.id,
     )
     db.add(file_record)
@@ -136,8 +160,29 @@ async def download_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
         
-    if file_record.uploader_id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied") # TODO change to 404 later
+    if file_record.actual_access_level == 1:
+        if file_record.uploader_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied") # TODO change to 404 later
+    elif file_record.actual_access_level == 2:
+        if file_record.uploader_id != user_id:
+            parent_ids = file_record.path.split('.') if file_record.path else []
+            parent_uuids = [uuid.UUID(p.replace('_', '-')) for p in parent_ids]
+            
+            allowed_file = await db.execute(select(FileAllowedUser).where(
+                FileAllowedUser.file_id == file_id,
+                FileAllowedUser.user_id == user_id
+            ))
+            is_allowed = allowed_file.scalars().first() is not None
+            
+            if not is_allowed and parent_uuids:
+                allowed_folder = await db.execute(select(FolderAllowedUser).where(
+                    FolderAllowedUser.folder_id.in_(parent_uuids),
+                    FolderAllowedUser.user_id == user_id
+                ))
+                is_allowed = allowed_folder.scalars().first() is not None
+                
+            if not is_allowed:
+                raise HTTPException(status_code=403, detail="Access denied")
         
     pf_result = await db.execute(select(PhysicalFile).where(PhysicalFile.id == file_record.physical_file_id))
     pf = pf_result.scalar_one()
@@ -161,11 +206,116 @@ async def download_file(
 
 @router.get("/", response_model=list[FileResponse])
 async def list_files(
+    limit: int = 100,
     user_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(File).where(File.uploader_id == user_id)
+        select(File).where(File.uploader_id == user_id).limit(limit)
     )
     files = result.scalars().all()
     return files
+
+@router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_file(
+    file_id: uuid.UUID,
+    user_id: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    s3: Any = Depends(get_s3_client),
+):
+    result = await db.execute(select(File).where(File.id == file_id))
+    file_record = result.scalar_one_or_none()
+    
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if file_record.uploader_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        
+    physical_file_id = file_record.physical_file_id
+    
+    await db.delete(file_record)
+    await db.flush()
+    
+    # Check if physical file is still referenced
+    other_files_result = await db.execute(
+        select(File).where(File.physical_file_id == physical_file_id).limit(1)
+    )
+    other_files = other_files_result.scalars().first()
+    
+    if not other_files:
+        pf_result = await db.execute(select(PhysicalFile).where(PhysicalFile.id == physical_file_id))
+        pf = pf_result.scalar_one_or_none()
+        if pf:
+            try:
+                await s3.delete_object(Bucket=settings.MINIO_BUCKET_NAME, Key=pf.internal_key)
+            except Exception:
+                pass
+            await db.delete(pf)
+            
+    await db.commit()
+    return None
+
+@router.patch("/{file_id}", response_model=FileResponse)
+async def update_file(
+    file_id: uuid.UUID,
+    request: FileUpdateRequest,
+    user_id: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(File).where(File.id == file_id))
+    file_record = result.scalar_one_or_none()
+    
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if file_record.uploader_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        
+    file_record.original_name = request.original_name
+    await db.commit()
+    await db.refresh(file_record)
+    return file_record
+    
+@router.patch("/{file_id}/access", response_model=FileResponse)
+async def update_file_access(
+    file_id: uuid.UUID,
+    request: FileAccessUpdateRequest,
+    user_id: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(File).where(File.id == file_id))
+    file_record = result.scalar_one_or_none()
+    
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if file_record.uploader_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied") #TODO change to 404 in prod
+        
+    if request.set_access_level not in [1, 2, 3]:
+        raise HTTPException(status_code=400, detail="Invalid access level")
+        
+    if request.set_access_level == 2 and not request.allowed_users:
+        raise HTTPException(status_code=400, detail="allowed_users must be provided for access level 2")
+
+    file_record.set_access_level = request.set_access_level
+    
+    if file_record.folder_id:
+        folder_result = await db.execute(select(Folder).where(Folder.id == file_record.folder_id))
+        parent_folder = folder_result.scalar_one_or_none()
+        parent_level = parent_folder.actual_access_level if parent_folder else 1
+    else:
+        parent_level = 1
+        
+    file_record.actual_access_level = max(request.set_access_level, parent_level)
+    
+    await db.execute(delete(FileAllowedUser).where(FileAllowedUser.file_id == file_id))
+    
+    if request.set_access_level == 2 and request.allowed_users:
+        for u_id in request.allowed_users:
+            db.add(FileAllowedUser(file_id=file_id, user_id=u_id))
+            
+    await db.commit()
+    await db.refresh(file_record)
+    return file_record

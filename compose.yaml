@@ -31,6 +31,7 @@ services:
       - MINIO_ENDPOINT=http://nginx:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - CLERK_FRONTEND_API=${CLERK_FRONTEND_API}
     volumes:
       - ./backend/app:/app/app
     # ports:
@@ -64,6 +65,18 @@ services:
       - fastapi
       - minio1
       - minio2
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: dockerfile
+      args:
+        - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+    ports:
+      - "5173:80"
+    depends_on:
+      - fastapi
     restart: always
 
 volumes:

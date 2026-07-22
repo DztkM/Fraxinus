@@ -26,8 +26,8 @@ class Folder(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    children: Mapped[list["Folder"]] = relationship("Folder", back_populates="parent", cascade="all, delete-orphan")
+    children: Mapped[list["Folder"]] = relationship("Folder", back_populates="parent", passive_deletes=True)
     parent: Mapped["Folder | None"] = relationship("Folder", back_populates="children", remote_side=[id])
-    files: Mapped[list["File"]] = relationship("File", back_populates="folder", cascade="all, delete-orphan")
+    files: Mapped[list["File"]] = relationship("File", back_populates="folder", passive_deletes=True)
     allowed_users: Mapped[list["FolderAllowedUser"]] = relationship("FolderAllowedUser", back_populates="folder", cascade="all, delete-orphan")
     share_links: Mapped[list["ShareLink"]] = relationship("ShareLink", back_populates="folder", cascade="all, delete-orphan")
