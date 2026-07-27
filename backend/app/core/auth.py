@@ -1,4 +1,4 @@
-from fastapi import Request, HTTPException, Security
+from fastapi import Request, HTTPException, Security, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from jwt import PyJWKClient
@@ -19,6 +19,7 @@ class AuthContext(BaseModel):
 
 async def get_current_user(
         request: Request,
+        x_user_id: str | None = Header(default=None, alias="X-User-Id", description="Required for B2B API requests"),
         auth: HTTPAuthorizationCredentials = Security(security)
 ) -> AuthContext | None:
     if request.query_params.get("share_token"):
@@ -40,13 +41,12 @@ async def get_current_user(
             algorithms=["HS256"],
             options={"verify_aud": False}
         )
-        # token must have namespace_id
+        # If it's our token, it must have namespace_id
         namespace_id = payload.get("namespace_id")
         if namespace_id:
-            user_id = request.headers.get("X-User-Id")
-            if not user_id:
+            if not x_user_id:
                 raise HTTPException(status_code=400, detail="Missing X-User-Id header for B2B request")
-            return AuthContext(user_id=user_id, namespace_id=namespace_id)
+            return AuthContext(user_id=x_user_id, namespace_id=namespace_id)
     except jwt.InvalidTokenError:
         pass # Not a valid B2B token, fallback to Clerk
 

@@ -17,7 +17,7 @@ def mock_request():
 @pytest.mark.asyncio
 async def test_missing_token(mock_request):
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(mock_request, None)
+        await get_current_user(mock_request, None, None)
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "Missing authentication token"
 
@@ -30,9 +30,9 @@ async def test_b2b_token_success(mock_request):
         algorithm="HS256"
     )
     auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials=b2b_token)
-    mock_request.headers["X-User-Id"] = "b2b_user_1"
+    x_user_id = "b2b_user_1"
 
-    ctx = await get_current_user(mock_request, auth)
+    ctx = await get_current_user(mock_request, x_user_id, auth)
     assert isinstance(ctx, AuthContext)
     assert ctx.user_id == "b2b_user_1"
     assert ctx.namespace_id == "b2b-namespace-123"
@@ -45,10 +45,11 @@ async def test_b2b_token_missing_header(mock_request):
         algorithm="HS256"
     )
     auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials=b2b_token)
-    # Don't set X-User-Id header
+    # Don't set x_user_id
+    x_user_id = None
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(mock_request, auth)
+        await get_current_user(mock_request, x_user_id, auth)
     assert exc_info.value.status_code == 400
     assert "Missing X-User-Id header" in exc_info.value.detail
 
@@ -70,7 +71,7 @@ async def test_clerk_token_success(mock_jwt_decode, mock_get_signing_key, mock_r
         
     mock_jwt_decode.side_effect = mock_decode_side_effect
 
-    ctx = await get_current_user(mock_request, auth)
+    ctx = await get_current_user(mock_request, None, auth)
     assert isinstance(ctx, AuthContext)
     assert ctx.user_id == "clerk_user_1"
     assert ctx.namespace_id == CLERK_NAMESPACE_ID
