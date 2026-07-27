@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from core.auth import get_current_user
+from core.auth import get_current_user, AuthContext
 from api.files import router as files_router
 from api.folders import router as folders_router
 from api.shared import router as shared_router
@@ -64,11 +64,12 @@ async def health_check():
     }
 
 @app.get("/v1/api/check_auth")
-async def check_auth(user_id: str | None = Depends(get_current_user)):
-    if user_id is None:
+async def check_auth(auth_ctx: AuthContext | None = Depends(get_current_user)):
+    if auth_ctx is None:
         return {"message": "Access granted via share_token"}
         
     return {
         "message": "Authentication successful",
-        "user_id": user_id
+        "user_id": auth_ctx.user_id,
+        "namespace_id": auth_ctx.namespace_id
     }
