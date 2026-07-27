@@ -18,6 +18,11 @@ const router = createRouter({
       path: '/files/:id',
       name: 'file-download',
       component: () => import('../views/FileDownload.vue'),
+    },
+    {
+      path: '/admin',
+      name: 'admin',
+      component: () => import('../views/AdminPanel.vue'),
     }
   ],
 })

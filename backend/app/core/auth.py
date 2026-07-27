@@ -1,4 +1,4 @@
-from fastapi import Request, HTTPException, Security, Header
+from fastapi import Request, HTTPException, Security, Header, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from jwt import PyJWKClient
@@ -79,10 +79,8 @@ async def get_current_user(
         )
 
 async def get_clerk_user(
-        request: Request,
-        auth: HTTPAuthorizationCredentials = Security(security)
+        ctx: AuthContext | None = Depends(get_current_user)
 ) -> AuthContext:
-    ctx = await get_current_user(request, auth)
     if not ctx:
         raise HTTPException(status_code=401, detail="Authentication required")
     if ctx.namespace_id != CLERK_NAMESPACE_ID:
