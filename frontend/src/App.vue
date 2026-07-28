@@ -47,7 +47,14 @@ const checkAuth = async () => {
   <div class="app-container">
     <header class="app-header">
       <div class="logo">Fraxinus Storage</div>
-      <div id="header-controls" class="header-controls"></div>
+      <div id="header-controls" class="header-controls">
+        <Show when="signed-in">
+          <nav class="main-nav">
+            <router-link to="/" class="nav-link" exact-active-class="active">Files</router-link>
+            <router-link to="/admin" class="nav-link" active-class="active">Admin Panel</router-link>
+          </nav>
+        </Show>
+      </div>
       <div class="auth-controls">
         <Show when="signed-out">
           <div class="auth-buttons">
@@ -122,6 +129,34 @@ const checkAuth = async () => {
   font-size: 1.5rem;
   font-weight: bold;
   color: var(--color-heading);
+}
+
+.main-nav {
+  display: flex;
+  gap: 1.5rem;
+  background-color: var(--color-background-soft);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+}
+
+.nav-link {
+  text-decoration: none;
+  color: var(--color-text);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.nav-link:hover {
+  background-color: var(--color-background-mute);
+}
+
+.nav-link.active {
+  background-color: var(--color-background);
+  color: var(--color-heading);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .auth-controls {

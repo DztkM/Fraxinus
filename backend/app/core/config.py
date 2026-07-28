@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # Clerk
     CLERK_FRONTEND_API: str = os.getenv("CLERK_FRONTEND_API", "https://relaxed-mustang-84.clerk.accounts.dev")
 
+    # Security
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "CHANGEMELATERCHANGEMELATERCHANGEMELATERCHANGEMELATERCHANGEMELATE")
+
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True, extra="ignore")
 
 settings = Settings()

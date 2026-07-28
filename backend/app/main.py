@@ -6,10 +6,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from core.auth import get_current_user
+from core.auth import get_current_user, AuthContext
 from api.files import router as files_router
 from api.folders import router as folders_router
 from api.shared import router as shared_router
+from api.admin import router as admin_router
+from api.b2b import router as b2b_router
 from core.minio import init_minio_bucket
 
 @asynccontextmanager
@@ -30,6 +32,8 @@ app.add_middleware(
 app.include_router(files_router)
 app.include_router(folders_router)
 app.include_router(shared_router)
+app.include_router(admin_router)
+app.include_router(b2b_router)
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://admin:CHANGEMELATER@localhost:5433/fraxinus_database")
 
@@ -64,11 +68,12 @@ async def health_check():
     }
 
 @app.get("/v1/api/check_auth")
-async def check_auth(user_id: str | None = Depends(get_current_user)):
-    if user_id is None:
+async def check_auth(auth_ctx: AuthContext | None = Depends(get_current_user)):
+    if auth_ctx is None:
         return {"message": "Access granted via share_token"}
         
     return {
         "message": "Authentication successful",
-        "user_id": user_id
+        "user_id": auth_ctx.user_id,
+        "namespace_id": auth_ctx.namespace_id
     }

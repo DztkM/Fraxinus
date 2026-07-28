@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from main import app
 from core.database import get_db
-from core.auth import get_current_user
+from core.auth import get_current_user, AuthContext, CLERK_NAMESPACE_ID
 from core.minio import get_s3_client
 from core.config import settings
 from sqlalchemy.pool import NullPool
@@ -51,7 +51,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[httpx.AsyncClient, 
         yield db_session
         
     async def override_get_current_user():
-        return "test_user_123"
+        return AuthContext(user_id="test_user_123", namespace_id=CLERK_NAMESPACE_ID)
         
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
