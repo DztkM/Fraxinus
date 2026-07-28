@@ -18,3 +18,6 @@ class NamespaceResponse(NamespaceBase):
 
 class NamespaceCreateResponse(NamespaceResponse):
     api_key: str
+
+class ApiKeyResponse(BaseModel):
+    api_key: str

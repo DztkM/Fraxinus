@@ -77,21 +77,17 @@ async def test_clerk_token_success(mock_jwt_decode, mock_get_signing_key, mock_r
     assert ctx.namespace_id == CLERK_NAMESPACE_ID
 
 @pytest.mark.asyncio
-@patch("core.auth.get_current_user")
-async def test_get_clerk_user_success(mock_get_current_user, mock_request):
-    mock_get_current_user.return_value = AuthContext(user_id="clerk_user_1", namespace_id=CLERK_NAMESPACE_ID)
-    auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials="abc")
+async def test_get_clerk_user_success():
+    ctx_input = AuthContext(user_id="clerk_user_1", namespace_id=CLERK_NAMESPACE_ID)
     
-    ctx = await get_clerk_user(mock_request, auth)
+    ctx = await get_clerk_user(ctx=ctx_input)
     assert ctx.user_id == "clerk_user_1"
 
 @pytest.mark.asyncio
-@patch("core.auth.get_current_user")
-async def test_get_clerk_user_forbidden(mock_get_current_user, mock_request):
-    mock_get_current_user.return_value = AuthContext(user_id="b2b_user_1", namespace_id="other-namespace")
-    auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials="abc")
+async def test_get_clerk_user_forbidden():
+    ctx_input = AuthContext(user_id="b2b_user_1", namespace_id="other-namespace")
     
     with pytest.raises(HTTPException) as exc_info:
-        await get_clerk_user(mock_request, auth)
+        await get_clerk_user(ctx=ctx_input)
     assert exc_info.value.status_code == 403
     assert exc_info.value.detail == "Clerk authentication required"

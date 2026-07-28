@@ -23,7 +23,7 @@ async def test_create_folder(db_session):
     await db_session.commit()
     
     # Verify it was created
-    result = await db_session.execute(select(Folder).filter_by(name="test_folder"))
+    result = await db_session.execute(select(Folder).filter_by(id=new_folder.id))
     folder = result.scalar_one_or_none()
     
     assert folder is not None
@@ -46,7 +46,7 @@ async def test_create_folder_hierarchy(db_session):
     await db_session.commit()
     
     # Verify the child has the correct parent
-    result = await db_session.execute(select(Folder).filter_by(name="child"))
+    result = await db_session.execute(select(Folder).filter_by(id=child_folder.id))
     child = result.scalar_one_or_none()
     
     assert child is not None
@@ -78,7 +78,7 @@ async def test_create_physical_and_logical_file(db_session):
     await db_session.commit()
     
     # Verify logical file is attached to physical file
-    result = await db_session.execute(select(File).filter_by(original_name="document.txt"))
+    result = await db_session.execute(select(File).filter_by(id=logical_file.id))
     file_record = result.scalar_one_or_none()
     
     assert file_record is not None

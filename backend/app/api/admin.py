@@ -7,7 +7,8 @@ from sqlalchemy import select
 from core.database import get_db
 from core.auth import get_clerk_user, AuthContext
 from models.namespace import Namespace
-from schemas.namespace import NamespaceCreate, NamespaceResponse, NamespaceCreateResponse
+from schemas.namespace import NamespaceCreate, NamespaceResponse, NamespaceCreateResponse, ApiKeyResponse
+import uuid
 
 router = APIRouter(
     prefix="/v1/api/admin",
@@ -67,3 +68,49 @@ async def get_namespaces(
     result = await db.execute(select(Namespace).where(Namespace.author_id == auth_ctx.user_id))
     namespaces = result.scalars().all()
     return namespaces
+
+@router.post("/namespaces/{namespace_id}/api-key", response_model=ApiKeyResponse)
+async def generate_new_api_key(
+    namespace_id: uuid.UUID,
+    auth_ctx: AuthContext = Depends(get_clerk_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Namespace).where(
+            Namespace.id == namespace_id, 
+            Namespace.author_id == auth_ctx.user_id
+        )
+    )
+    namespace = result.scalar_one_or_none()
+    
+    if not namespace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Namespace not found")
+        
+    raw_key, key_hash = generate_api_key()
+    
+    namespace.api_key_hash = key_hash
+    await db.commit()
+    
+    return ApiKeyResponse(api_key=raw_key)
+
+@router.delete("/namespaces/{namespace_id}/api-key", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_api_key(
+    namespace_id: uuid.UUID,
+    auth_ctx: AuthContext = Depends(get_clerk_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Namespace).where(
+            Namespace.id == namespace_id, 
+            Namespace.author_id == auth_ctx.user_id
+        )
+    )
+    namespace = result.scalar_one_or_none()
+    
+    if not namespace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Namespace not found")
+        
+    namespace.api_key_hash = None
+    await db.commit()
+    
+    return None
