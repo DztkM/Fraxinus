@@ -10,6 +10,7 @@ interface Namespace {
   storage_quota_bytes: number | null
   created_at: string
   updated_at: string
+  has_api_key: boolean
 }
 
 const namespaces = ref<Namespace[]>([])
@@ -20,6 +21,8 @@ const errorMsg = ref('')
 const newName = ref('')
 const newQuota = ref<number | null>(null)
 const isCreating = ref(false)
+
+const processingIds = ref<Record<string, boolean>>({})
 
 // Result state
 const createdApiKey = ref('')
@@ -79,7 +82,8 @@ const createNamespace = async () => {
       name: data.name,
       storage_quota_bytes: data.storage_quota_bytes,
       created_at: data.created_at,
-      updated_at: data.updated_at
+      updated_at: data.updated_at,
+      has_api_key: true
     }
     
     // Add to list and reset form
@@ -114,6 +118,74 @@ const formatBytes = (bytes: number | null) => {
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString()
+}
+
+const regenerateKey = async (nsId: string) => {
+  if (!confirm('Are you sure you want to regenerate the API key? The old key will immediately stop working.')) return
+  
+  processingIds.value[nsId] = true
+  errorMsg.value = ''
+  createdApiKey.value = ''
+  
+  try {
+    const token = await getToken.value()
+    const response = await fetch(`${API_URL}/${nsId}/api-key`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}))
+      throw new Error(errData.detail || 'Failed to regenerate API key')
+    }
+    
+    const data = await response.json()
+    createdApiKey.value = data.api_key
+    
+    // Update the namespace state locally
+    const ns = namespaces.value.find(n => n.id === nsId)
+    if (ns) {
+      ns.has_api_key = true
+    }
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } catch (err: any) {
+    errorMsg.value = err.message || 'An error occurred'
+  } finally {
+    processingIds.value[nsId] = false
+  }
+}
+
+const deleteKey = async (nsId: string) => {
+  if (!confirm('Are you sure you want to delete this API key? B2B access for this namespace will be revoked until a new key is generated.')) return
+  
+  processingIds.value[nsId] = true
+  errorMsg.value = ''
+  
+  try {
+    const token = await getToken.value()
+    const response = await fetch(`${API_URL}/${nsId}/api-key`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}))
+      throw new Error(errData.detail || 'Failed to delete API key')
+    }
+    
+    alert('API Key successfully deleted.')
+    
+    // Update the namespace state locally
+    const ns = namespaces.value.find(n => n.id === nsId)
+    if (ns) {
+      ns.has_api_key = false
+    }
+  } catch (err: any) {
+    errorMsg.value = err.message || 'An error occurred'
+  } finally {
+    processingIds.value[nsId] = false
+  }
 }
 
 onMounted(() => {
@@ -169,7 +241,7 @@ onMounted(() => {
         <div v-if="createdApiKey" class="api-key-result">
           <div class="success-header">
             <span class="icon">✅</span>
-            <h3>Namespace Created!</h3>
+            <h3>API Key Ready!</h3>
           </div>
           <p class="warning-text">
             <strong>IMPORTANT:</strong> Copy this API key now. You won't be able to see it again!
@@ -216,12 +288,33 @@ onMounted(() => {
                 <td>{{ formatBytes(ns.storage_quota_bytes) }}</td>
                 <td class="date-cell">{{ formatDate(ns.created_at) }}</td>
                 <td>
-                  <div class="action-buttons">
-                    <button class="btn btn-secondary btn-sm" disabled title="Manage API Keys (Coming soon)">
-                      Keys
+                  <div v-if="ns.has_api_key" class="action-buttons">
+                    <button 
+                      @click="regenerateKey(ns.id)" 
+                      class="btn btn-secondary btn-sm" 
+                      :disabled="processingIds[ns.id]"
+                      title="Generate new API Key"
+                    >
+                      Recreate Key
                     </button>
-                    <button class="btn btn-danger btn-sm" disabled title="Delete Namespace (Coming soon)">
-                      Delete
+                    <button 
+                      @click="deleteKey(ns.id)" 
+                      class="btn btn-danger btn-sm" 
+                      :disabled="processingIds[ns.id]"
+                      title="Revoke active API Key"
+                    >
+                      Delete Key
+                    </button>
+                  </div>
+                  <div v-else class="action-buttons no-key-actions">
+                    <span class="no-key-text">No key yet</span>
+                    <button 
+                      @click="regenerateKey(ns.id)" 
+                      class="btn btn-primary btn-sm" 
+                      :disabled="processingIds[ns.id]"
+                      title="Create API Key"
+                    >
+                      Create Key
                     </button>
                   </div>
                 </td>
@@ -435,6 +528,19 @@ input:focus {
 .action-buttons {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+
+.no-key-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.no-key-text {
+  font-size: 0.9rem;
+  color: var(--color-text-light, #64748b);
+  font-style: italic;
 }
 
 .btn {

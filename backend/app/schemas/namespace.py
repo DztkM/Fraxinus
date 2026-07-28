@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 import uuid
 from datetime import datetime
 
@@ -13,6 +13,13 @@ class NamespaceResponse(NamespaceBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    
+    api_key_hash: str | None = Field(default=None, exclude=True)
+    
+    @computed_field
+    @property
+    def has_api_key(self) -> bool:
+        return self.api_key_hash is not None
     
     model_config = ConfigDict(from_attributes=True)
 
