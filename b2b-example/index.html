@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fraxinus B2B Demo</title>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Fraxinus B2B Client</h1>
+        <p class="subtitle">Demonstration of B2B API integrations</p>
+      </header>
+      
+      <main>
+        <!-- Auth Section -->
+        <section id="auth-section" class="card glass">
+          <h2>Authentication</h2>
+          <p class="description">Enter your B2B API Key and User ID to receive a token.</p>
+          <form id="auth-form">
+            <div class="input-group">
+              <label for="apiKey">B2B API Key</label>
+              <input type="password" id="apiKey" required placeholder="Enter your API Key" />
+            </div>
+            <div class="input-group">
+              <label for="userId">User ID (X-User-Id)</label>
+              <input type="text" id="userId" required placeholder="e.g. user_123" />
+            </div>
+            <button type="submit" class="btn primary">Login</button>
+            <div id="auth-error" class="error-text hidden"></div>
+          </form>
+        </section>
+
+        <!-- Dashboard Section (Hidden until auth) -->
+        <section id="dashboard-section" class="hidden">
+          
+          <div class="card glass">
+            <h2>Upload File</h2>
+            <form id="upload-form">
+              <div class="file-drop-area" id="file-drop-area">
+                <span class="file-msg">Drag & Drop or Click to choose a file</span>
+                <input class="file-input" type="file" id="fileInput" required>
+              </div>
+              <div id="upload-progress-container" class="hidden">
+                <div class="progress-bar">
+                  <div class="progress" id="upload-progress" style="width: 0%"></div>
+                </div>
+                <p id="upload-status" class="status-text">Uploading: 0%</p>
+              </div>
+              <button type="submit" class="btn primary mt-4" id="uploadBtn">Upload</button>
+            </form>
+          </div>
+
+          <div class="card glass mt-6">
+            <div class="flex-between">
+              <h2>My Files</h2>
+              <button class="btn secondary small" id="refreshFilesBtn">Refresh</button>
+            </div>
+            <div class="table-container mt-4">
+              <table id="filesTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="filesList">
+                  <!-- Files will be injected here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
