@@ -4,13 +4,19 @@ import { useAuth } from '@clerk/vue'
 
 const { getToken } = useAuth()
 
+interface ApiKeyInfo {
+  id: string
+  name: string
+  created_at: string
+}
+
 interface Namespace {
   id: string
   name: string
   storage_quota_bytes: number | null
   created_at: string
   updated_at: string
-  has_api_key: boolean
+  api_keys: ApiKeyInfo[]
 }
 
 const namespaces = ref<Namespace[]>([])
@@ -23,12 +29,14 @@ const newQuota = ref<number | null>(null)
 const isCreating = ref(false)
 
 const processingIds = ref<Record<string, boolean>>({})
+const newKeyNames = ref<Record<string, string>>({})
 
 // Result state
 const createdApiKey = ref('')
 const createdNamespace = ref<Namespace | null>(null)
 
 const API_URL = 'http://localhost:8000/v1/api/admin/namespaces'
+const API_KEY_URL = 'http://localhost:8000/v1/api/admin/api-key'
 
 const fetchNamespaces = async () => {
   isLoading.value = true
@@ -76,14 +84,13 @@ const createNamespace = async () => {
     }
     
     const data = await response.json()
-    createdApiKey.value = data.api_key
     createdNamespace.value = {
       id: data.id,
       name: data.name,
       storage_quota_bytes: data.storage_quota_bytes,
       created_at: data.created_at,
       updated_at: data.updated_at,
-      has_api_key: true
+      api_keys: []
     }
     
     // Add to list and reset form
@@ -120,8 +127,9 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString()
 }
 
-const regenerateKey = async (nsId: string) => {
-  if (!confirm('Are you sure you want to regenerate the API key? The old key will immediately stop working.')) return
+const createKey = async (nsId: string) => {
+  const name = newKeyNames.value[nsId]
+  if (!name) return
   
   processingIds.value[nsId] = true
   errorMsg.value = ''
@@ -129,14 +137,18 @@ const regenerateKey = async (nsId: string) => {
   
   try {
     const token = await getToken.value()
-    const response = await fetch(`${API_URL}/${nsId}/api-key`, {
+    const response = await fetch(API_KEY_URL, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` }
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ name, namespace_id: nsId })
     })
     
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}))
-      throw new Error(errData.detail || 'Failed to regenerate API key')
+      throw new Error(errData.detail || 'Failed to create API key')
     }
     
     const data = await response.json()
@@ -145,9 +157,10 @@ const regenerateKey = async (nsId: string) => {
     // Update the namespace state locally
     const ns = namespaces.value.find(n => n.id === nsId)
     if (ns) {
-      ns.has_api_key = true
+      ns.api_keys.push({ id: data.id, name: data.name, created_at: data.created_at })
     }
     
+    newKeyNames.value[nsId] = ''
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (err: any) {
     errorMsg.value = err.message || 'An error occurred'
@@ -156,15 +169,15 @@ const regenerateKey = async (nsId: string) => {
   }
 }
 
-const deleteKey = async (nsId: string) => {
-  if (!confirm('Are you sure you want to delete this API key? B2B access for this namespace will be revoked until a new key is generated.')) return
+const deleteKey = async (nsId: string, keyId: string) => {
+  if (!confirm('Are you sure you want to delete this API key? Access using this key will be revoked immediately.')) return
   
-  processingIds.value[nsId] = true
+  processingIds.value[keyId] = true
   errorMsg.value = ''
   
   try {
     const token = await getToken.value()
-    const response = await fetch(`${API_URL}/${nsId}/api-key`, {
+    const response = await fetch(`${API_KEY_URL}/${keyId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -174,17 +187,15 @@ const deleteKey = async (nsId: string) => {
       throw new Error(errData.detail || 'Failed to delete API key')
     }
     
-    alert('API Key successfully deleted.')
-    
     // Update the namespace state locally
     const ns = namespaces.value.find(n => n.id === nsId)
     if (ns) {
-      ns.has_api_key = false
+      ns.api_keys = ns.api_keys.filter(k => k.id !== keyId)
     }
   } catch (err: any) {
     errorMsg.value = err.message || 'An error occurred'
   } finally {
-    processingIds.value[nsId] = false
+    processingIds.value[keyId] = false
   }
 }
 
@@ -278,44 +289,53 @@ onMounted(() => {
               <tr>
                 <th>Name</th>
                 <th>Storage Quota</th>
-                <th>Created At</th>
-                <th>Actions</th>
+                <th>API Keys</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="ns in namespaces" :key="ns.id">
-                <td class="font-medium">{{ ns.name }}</td>
-                <td>{{ formatBytes(ns.storage_quota_bytes) }}</td>
-                <td class="date-cell">{{ formatDate(ns.created_at) }}</td>
                 <td>
-                  <div v-if="ns.has_api_key" class="action-buttons">
-                    <button 
-                      @click="regenerateKey(ns.id)" 
-                      class="btn btn-secondary btn-sm" 
-                      :disabled="processingIds[ns.id]"
-                      title="Generate new API Key"
-                    >
-                      Recreate Key
-                    </button>
-                    <button 
-                      @click="deleteKey(ns.id)" 
-                      class="btn btn-danger btn-sm" 
-                      :disabled="processingIds[ns.id]"
-                      title="Revoke active API Key"
-                    >
-                      Delete Key
-                    </button>
-                  </div>
-                  <div v-else class="action-buttons no-key-actions">
-                    <span class="no-key-text">No key yet</span>
-                    <button 
-                      @click="regenerateKey(ns.id)" 
-                      class="btn btn-primary btn-sm" 
-                      :disabled="processingIds[ns.id]"
-                      title="Create API Key"
-                    >
-                      Create Key
-                    </button>
+                  <div class="font-medium">{{ ns.name }}</div>
+                  <div class="date-cell">Created: {{ formatDate(ns.created_at) }}</div>
+                </td>
+                <td>{{ formatBytes(ns.storage_quota_bytes) }}</td>
+                <td>
+                  <div class="keys-container">
+                    <div v-if="ns.api_keys.length > 0" class="keys-list">
+                      <div v-for="key in ns.api_keys" :key="key.id" class="key-item">
+                        <div class="key-info">
+                          <span class="key-name">{{ key.name }}</span>
+                          <span class="key-date">{{ formatDate(key.created_at) }}</span>
+                        </div>
+                        <button 
+                          @click="deleteKey(ns.id, key.id)" 
+                          class="btn btn-danger btn-sm" 
+                          :disabled="processingIds[key.id]"
+                          title="Revoke active API Key"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <div v-else class="no-keys-text">
+                      No keys yet
+                    </div>
+                    <div class="add-key-form">
+                      <input 
+                        type="text" 
+                        v-model="newKeyNames[ns.id]" 
+                        placeholder="New key name" 
+                        class="small-input"
+                        @keyup.enter="createKey(ns.id)"
+                      />
+                      <button 
+                        @click="createKey(ns.id)" 
+                        class="btn btn-primary btn-sm" 
+                        :disabled="processingIds[ns.id] || !newKeyNames[ns.id]"
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -503,6 +523,7 @@ input:focus {
   padding: 1rem;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
 }
 
 .namespaces-table th {
@@ -518,29 +539,70 @@ input:focus {
 .font-medium {
   font-weight: 500;
   color: var(--color-heading);
+  margin-bottom: 0.25rem;
 }
 
 .date-cell {
   color: var(--color-text-light, #64748b);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
-.action-buttons {
+.keys-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.keys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.key-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background-color: var(--color-background-soft);
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+}
+
+.key-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.key-name {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--color-heading);
+}
+
+.key-date {
+  font-size: 0.8rem;
+  color: var(--color-text-light, #64748b);
+}
+
+.no-keys-text {
+  font-size: 0.9rem;
+  color: var(--color-text-light, #64748b);
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+.add-key-form {
   display: flex;
   gap: 0.5rem;
   align-items: center;
 }
 
-.no-key-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.no-key-text {
-  font-size: 0.9rem;
-  color: var(--color-text-light, #64748b);
-  font-style: italic;
+.small-input {
+  padding: 0.35rem 0.5rem !important;
+  font-size: 0.9rem !important;
+  border-radius: 4px !important;
+  flex: 1;
 }
 
 .btn {
@@ -562,7 +624,6 @@ input:focus {
 .btn-primary {
   background-color: #0f172a;
   color: white;
-  width: 100%;
 }
 
 .btn-primary:hover:not(:disabled) {

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from core.database import get_db
 from core.config import settings
 from models.namespace import Namespace
+from models.api_key import NamespaceAPIKey
 from schemas.b2b import B2BTokenRequest, B2BTokenResponse
 
 router = APIRouter(
@@ -22,10 +23,13 @@ async def login_for_access_token(
 ):
     key_hash = hashlib.sha256(request.api_key.encode()).hexdigest()
     
-    result = await db.execute(select(Namespace).where(Namespace.api_key_hash == key_hash))
-    namespace = result.scalars().first()
+    result = await db.execute(
+        select(NamespaceAPIKey)
+        .where(NamespaceAPIKey.key_hash == key_hash)
+    )
+    api_key = result.scalars().first()
     
-    if not namespace:
+    if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key"
@@ -35,7 +39,7 @@ async def login_for_access_token(
     expire = datetime.now(timezone.utc) + timedelta(hours=1)
     
     payload = {
-        "namespace_id": str(namespace.id),
+        "namespace_id": str(api_key.namespace_id),
         "exp": expire,
         "iss": "fraxinus-b2b"
     }

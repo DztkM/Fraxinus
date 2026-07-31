@@ -1,8 +1,10 @@
 import pytest
 from httpx import AsyncClient
 from models.namespace import Namespace
+from models.api_key import NamespaceAPIKey
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.auth import CLERK_NAMESPACE_ID
+from sqlalchemy import select
+import uuid
 
 @pytest.mark.asyncio
 async def test_create_api_key(client: AsyncClient, db_session: AsyncSession):
@@ -15,15 +17,19 @@ async def test_create_api_key(client: AsyncClient, db_session: AsyncSession):
     data = response.json()
     ns_id = data["id"]
     
-    # 2) Try to regenerate the API key
-    regen_response = await client.post(f"/v1/api/admin/namespaces/{ns_id}/api-key")
+    # 2) create an API key
+    regen_response = await client.post("/v1/api/admin/api-key", json={"name": "test key", "namespace_id": ns_id})
     assert regen_response.status_code == 200
     regen_data = regen_response.json()
     assert "api_key" in regen_data
     assert regen_data["api_key"].startswith("frax_")
+    assert regen_data["name"] == "test key"
     
-    # 3) New api_key should be different from the first one
-    assert regen_data["api_key"] != data["api_key"]
+    # 3) create a second api_key
+    regen_response_2 = await client.post("/v1/api/admin/api-key", json={"name": "test key 2", "namespace_id": ns_id})
+    assert regen_response_2.status_code == 200
+    regen_data_2 = regen_response_2.json()
+    assert regen_data_2["api_key"] != regen_data["api_key"]
 
 @pytest.mark.asyncio
 async def test_delete_api_key(client: AsyncClient, db_session: AsyncSession):
@@ -35,33 +41,36 @@ async def test_delete_api_key(client: AsyncClient, db_session: AsyncSession):
     assert response.status_code == 201
     ns_id = response.json()["id"]
     
-    # 2) delete the API key
-    del_response = await client.delete(f"/v1/api/admin/namespaces/{ns_id}/api-key")
+    # 2) create a key
+    regen_response = await client.post("/v1/api/admin/api-key", json={"name": "test key", "namespace_id": ns_id})
+    assert regen_response.status_code == 200
+    key_id = regen_response.json()["id"]
+
+    # 3) delete the API key
+    del_response = await client.delete(f"/v1/api/admin/api-key/{key_id}")
     assert del_response.status_code == 204
     
-    # 3) verify in DB
-    result = await db_session.execute(
-        from_sqlalchemy_select := __import__("sqlalchemy").select(Namespace).where(Namespace.id == ns_id)
-    )
-    ns = result.scalar_one()
-    assert ns.api_key_hash is None
+    # 4) verify in DB
+    result = await db_session.execute(select(NamespaceAPIKey).where(NamespaceAPIKey.id == key_id))
+    key = result.scalar_one_or_none()
+    assert key is None
 
 @pytest.mark.asyncio
 async def test_api_key_access_denied(client: AsyncClient, db_session: AsyncSession):
     # 1) create a namespace directly in DB belonging to another user
     other_ns = Namespace(
         name="other_user_ns",
-        author_id="different_user",
-        api_key_hash="somehash"
+        author_id="different_user"
     )
     db_session.add(other_ns)
     await db_session.commit()
     await db_session.refresh(other_ns)
     
-    # 2) try to regenerate key for someone else's namespace
-    regen_response = await client.post(f"/v1/api/admin/namespaces/{other_ns.id}/api-key")
+    # 2) try to generate key for someone else's namespace
+    regen_response = await client.post("/v1/api/admin/api-key", json={"name": "test key", "namespace_id": str(other_ns.id)})
     assert regen_response.status_code == 404
     
-    # 3) try to delete key for someone else's namespace
-    del_response = await client.delete(f"/v1/api/admin/namespaces/{other_ns.id}/api-key")
+    # 3) try to delete a random key ID for someone else's namespace (would be 404 since it's random)
+    import uuid
+    del_response = await client.delete(f"/v1/api/admin/api-key/{uuid.uuid4()}")
     assert del_response.status_code == 404

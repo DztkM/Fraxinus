@@ -5,6 +5,7 @@ from models.file import File
 from models.permissions import FolderAllowedUser, FileAllowedUser
 from models.share_link import ShareLink
 from models.namespace import Namespace
+from models.api_key import NamespaceAPIKey
 
 __all__ = [
     "Base",
@@ -15,4 +16,5 @@ __all__ = [
     "FileAllowedUser",
     "ShareLink",
     "Namespace",
+    "NamespaceAPIKey",
 ]

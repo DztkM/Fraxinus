@@ -9,22 +9,28 @@ class NamespaceBase(BaseModel):
 class NamespaceCreate(NamespaceBase):
     pass
 
+class ApiKeyInfo(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ApiKeyCreate(BaseModel):
+    name: str
+    namespace_id: uuid.UUID
+
 class NamespaceResponse(NamespaceBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
     
-    api_key_hash: str | None = Field(default=None, exclude=True)
-    
-    @computed_field
-    @property
-    def has_api_key(self) -> bool:
-        return self.api_key_hash is not None
+    api_keys: list[ApiKeyInfo] = Field(default_factory=list)
     
     model_config = ConfigDict(from_attributes=True)
 
 class NamespaceCreateResponse(NamespaceResponse):
-    api_key: str
+    pass
 
-class ApiKeyResponse(BaseModel):
+class ApiKeyResponse(ApiKeyInfo):
     api_key: str
