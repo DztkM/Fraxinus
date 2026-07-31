@@ -20,9 +20,9 @@ const router = createRouter({
       component: () => import('../views/FileDownload.vue'),
     },
     {
-      path: '/admin',
-      name: 'admin',
-      component: () => import('../views/AdminPanel.vue'),
+      path: '/dashboard',
+      name: 'dashboard',
+      component: () => import('../views/DashboardPanel.vue'),
     }
   ],
 })

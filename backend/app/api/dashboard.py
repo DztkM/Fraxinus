@@ -13,8 +13,8 @@ from schemas.namespace import NamespaceCreate, NamespaceResponse, NamespaceCreat
 import uuid
 
 router = APIRouter(
-    prefix="/v1/api/admin",
-    tags=["admin"],
+    prefix="/v1/api/dashboard",
+    tags=["dashboard"],
     dependencies=[Depends(get_clerk_user)]
 )
 

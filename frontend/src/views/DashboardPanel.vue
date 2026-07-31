@@ -35,8 +35,8 @@ const newKeyNames = ref<Record<string, string>>({})
 const createdApiKey = ref('')
 const createdNamespace = ref<Namespace | null>(null)
 
-const API_URL = 'http://localhost:8000/v1/api/admin/namespaces'
-const API_KEY_URL = 'http://localhost:8000/v1/api/admin/api-key'
+const API_URL = 'http://localhost:8000/v1/api/dashboard/namespaces'
+const API_KEY_URL = 'http://localhost:8000/v1/api/dashboard/api-key'
 
 const fetchNamespaces = async () => {
   isLoading.value = true
