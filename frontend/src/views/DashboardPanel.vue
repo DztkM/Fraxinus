@@ -19,7 +19,14 @@ interface Namespace {
   api_keys: ApiKeyInfo[]
 }
 
+interface QuotaInfo {
+  allocated: number | null
+  used: number
+  is_admin: boolean
+}
+
 const namespaces = ref<Namespace[]>([])
+const quota = ref<QuotaInfo | null>(null)
 const isLoading = ref(false)
 const errorMsg = ref('')
 
@@ -55,6 +62,25 @@ const fetchNamespaces = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+const fetchQuota = async () => {
+  try {
+    const token = await getToken.value()
+    const response = await fetch('http://localhost:8000/v1/api/dashboard/quota', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (response.ok) {
+      quota.value = await response.json()
+    }
+  } catch (err) {
+    console.error('Failed to fetch quota', err)
+  }
+}
+
+const getQuotaPercentage = () => {
+  if (!quota.value || !quota.value.allocated) return 0;
+  return Math.min(100, Math.round((quota.value.used / quota.value.allocated) * 100));
 }
 
 const createNamespace = async () => {
@@ -201,14 +227,39 @@ const deleteKey = async (nsId: string, keyId: string) => {
 
 onMounted(() => {
   fetchNamespaces()
+  fetchQuota()
 })
 </script>
 
 <template>
   <div class="admin-panel">
     <div class="header-section">
-      <h1>B2B Integration</h1>
-      <p>Manage your namespaces and API keys for backend-to-backend integration.</p>
+      <div class="header-content">
+        <div>
+          <h1>B2B Integration</h1>
+          <p>Manage your namespaces and API keys for backend-to-backend integration.</p>
+        </div>
+        <router-link v-if="quota?.is_admin" to="/admin" class="btn btn-primary admin-link">
+          Admin Panel
+        </router-link>
+      </div>
+      
+      <div class="quota-container" v-if="quota">
+        <div class="quota-header">
+          <h3>Storage Quota</h3>
+          <span>{{ formatBytes(quota.used) }} / {{ quota.allocated === null ? 'Unlimited' : formatBytes(quota.allocated) }}</span>
+        </div>
+        <div class="progress-bar" v-if="quota.allocated !== null">
+          <div 
+            class="progress" 
+            :style="{ width: getQuotaPercentage() + '%' }" 
+            :class="{ 'warning': getQuotaPercentage() > 80, 'danger': getQuotaPercentage() > 95 }"
+          ></div>
+        </div>
+        <p v-if="quota.allocated === 0" class="warning-text" style="margin-top: 0.5rem;">
+          No quota allocated. You cannot create namespaces or upload files. Please contact the administrator.
+        </p>
+      </div>
     </div>
 
     <div v-if="errorMsg" class="error-banner">
@@ -244,7 +295,7 @@ onMounted(() => {
             >
           </div>
           
-          <button type="submit" class="btn btn-primary" :disabled="isCreating || !newName">
+          <button type="submit" class="btn btn-primary" :disabled="isCreating || !newName || quota?.allocated === 0">
             {{ isCreating ? 'Creating...' : 'Create Namespace' }}
           </button>
         </form>
@@ -358,6 +409,17 @@ onMounted(() => {
   margin-bottom: 2rem;
 }
 
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.admin-link {
+  text-decoration: none;
+}
+
 .header-section h1 {
   font-size: 2rem;
   color: var(--color-heading);
@@ -367,6 +429,54 @@ onMounted(() => {
 .header-section p {
   color: var(--color-text-light, #64748b);
   font-size: 1.1rem;
+}
+
+.quota-container {
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.quota-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.quota-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--color-heading);
+}
+
+.quota-header span {
+  font-weight: 500;
+  color: var(--color-heading);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  background-color: var(--color-background-mute);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.progress {
+  height: 100%;
+  background-color: #10b981;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.progress.warning {
+  background-color: #f59e0b;
+}
+
+.progress.danger {
+  background-color: #ef4444;
 }
 
 .error-banner {

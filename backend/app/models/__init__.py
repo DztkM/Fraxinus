@@ -6,6 +6,7 @@ from models.permissions import FolderAllowedUser, FileAllowedUser
 from models.share_link import ShareLink
 from models.namespace import Namespace
 from models.api_key import NamespaceAPIKey
+from models.user_quota import B2BUserQuota
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "ShareLink",
     "Namespace",
     "NamespaceAPIKey",
+    "B2BUserQuota",
 ]

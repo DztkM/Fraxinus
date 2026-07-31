@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "CHANGEMELATERCHANGEMELATERCHANGEMELATERCHANGEMELATERCHANGEMELATE")
 
+    # Admin
+    ADMIN_USER_ID: str | None = os.getenv("ADMIN_USER_ID", "user_3HHJrGbhDEloLXWG3vzk73NihXG")
+
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True, extra="ignore")
 
 settings = Settings()

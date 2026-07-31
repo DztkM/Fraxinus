@@ -12,6 +12,9 @@ from core.auth import get_current_user, AuthContext
 from models.file import File
 from models.folder import Folder
 from models.physical_file import PhysicalFile
+from models.namespace import Namespace
+from models.user_quota import B2BUserQuota
+from sqlalchemy import func
 from models.permissions import FileAllowedUser, FolderAllowedUser
 from schemas.file import (
     FileUploadInitRequest,
@@ -49,6 +52,37 @@ async def init_upload(
         if folder.path:
             path = f"{folder.path}.{path}"
         actual_access_level = folder.actual_access_level
+
+    namespace_result = await db.execute(select(Namespace).where(Namespace.id == auth_ctx.namespace_id))
+    namespace = namespace_result.scalar_one_or_none()
+    if not namespace:
+        raise HTTPException(status_code=404, detail="Namespace not found")
+        
+    author_id = namespace.author_id
+
+    # Check quota
+    quota_result = await db.execute(select(B2BUserQuota).where(B2BUserQuota.user_id == author_id))
+    quota = quota_result.scalar_one_or_none()
+    if not quota or (quota.allocated_quota_bytes is not None and quota.allocated_quota_bytes == 0):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Storage quota not allocated."
+        )
+
+    used_result = await db.execute(
+        select(func.coalesce(func.sum(PhysicalFile.size), 0))
+        .select_from(PhysicalFile)
+        .join(File, PhysicalFile.id == File.physical_file_id)
+        .join(Namespace, File.namespace_id == Namespace.id)
+        .where(Namespace.author_id == author_id)
+    )
+    used = used_result.scalar_one()
+
+    if quota.allocated_quota_bytes is not None and used + request.size > quota.allocated_quota_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Storage quota exceeded."
+        )
 
     internal_key = str(uuid.uuid4())
     

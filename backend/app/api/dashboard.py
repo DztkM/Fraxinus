@@ -9,7 +9,13 @@ from core.database import get_db
 from core.auth import get_clerk_user, AuthContext
 from models.namespace import Namespace
 from models.api_key import NamespaceAPIKey
+from models.user_quota import B2BUserQuota
+from models.physical_file import PhysicalFile
+from models.file import File
 from schemas.namespace import NamespaceCreate, NamespaceResponse, NamespaceCreateResponse, ApiKeyResponse, ApiKeyCreate
+from schemas.quota import QuotaInfo
+from core.config import settings
+from sqlalchemy import func
 import uuid
 
 router = APIRouter(
@@ -31,6 +37,15 @@ async def create_namespace(
     auth_ctx: AuthContext = Depends(get_clerk_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # Check quota
+    quota_result = await db.execute(select(B2BUserQuota).where(B2BUserQuota.user_id == auth_ctx.user_id))
+    quota = quota_result.scalar_one_or_none()
+    if not quota or (quota.allocated_quota_bytes is not None and quota.allocated_quota_bytes == 0):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Storage quota not allocated. Please contact administrator."
+        )
+
     # Check if namespace with this name already exists
     result = await db.execute(select(Namespace).where(Namespace.name == namespace_in.name))
     if result.scalars().first():
@@ -70,6 +85,29 @@ async def get_namespaces(
     )
     namespaces = result.scalars().all()
     return namespaces
+
+@router.get("/quota", response_model=QuotaInfo)
+async def get_dashboard_quota(
+    auth_ctx: AuthContext = Depends(get_clerk_user),
+    db: AsyncSession = Depends(get_db)
+):
+    quota_result = await db.execute(select(B2BUserQuota).where(B2BUserQuota.user_id == auth_ctx.user_id))
+    quota = quota_result.scalar_one_or_none()
+    
+
+    is_admin = bool(settings.ADMIN_USER_ID and auth_ctx.user_id == settings.ADMIN_USER_ID)
+    
+    allocated = 0
+    if quota:
+        allocated = quota.allocated_quota_bytes
+
+    used = 42
+    
+    return QuotaInfo(
+        allocated=allocated,
+        used=used,
+        is_admin=is_admin
+    )
 
 @router.post("/api-key", response_model=ApiKeyResponse)
 async def create_api_key(

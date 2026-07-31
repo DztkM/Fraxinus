@@ -12,6 +12,7 @@ from api.folders import router as folders_router
 from api.shared import router as shared_router
 from api.dashboard import router as dashboard_router
 from api.b2b import router as b2b_router
+from api.admin import router as admin_router
 from core.minio import init_minio_bucket
 
 @asynccontextmanager
@@ -34,6 +35,7 @@ app.include_router(folders_router)
 app.include_router(shared_router)
 app.include_router(dashboard_router)
 app.include_router(b2b_router)
+app.include_router(admin_router)
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://admin:CHANGEMELATER@localhost:5433/fraxinus_database")
 
