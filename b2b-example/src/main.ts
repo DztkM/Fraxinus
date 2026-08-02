@@ -119,12 +119,23 @@ function renderFiles(files: any[]) {
     
     // Actions
     const tdActions = document.createElement('td');
+    tdActions.style.display = 'flex';
+    tdActions.style.gap = '8px';
+    
     const dlBtn = document.createElement('button');
     dlBtn.textContent = 'Download';
     dlBtn.className = 'btn secondary small';
     dlBtn.onclick = () => downloadFile(file.id);
     
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Delete';
+    delBtn.className = 'btn secondary small';
+    delBtn.style.backgroundColor = 'var(--danger-color, #dc3545)';
+    delBtn.style.color = 'white';
+    delBtn.onclick = () => deleteFile(file.id);
+    
     tdActions.appendChild(dlBtn);
+    tdActions.appendChild(delBtn);
     
     tr.appendChild(tdName);
     tr.appendChild(tdStatus);
@@ -143,5 +154,16 @@ async function downloadFile(fileId: string) {
   } catch (error) {
     console.error('Error downloading file:', error);
     alert('Failed to get download link');
+  }
+}
+
+async function deleteFile(fileId: string) {
+  if (!confirm('Are you sure you want to delete this file?')) return;
+  try {
+    await api.deleteFile(fileId);
+    loadFiles();
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    alert('Failed to delete file');
   }
 }

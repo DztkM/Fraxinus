@@ -90,6 +90,14 @@ export class B2BApiClient {
     return response.json();
   }
 
+  async deleteFile(fileId: string) {
+    const response = await fetch(`${API_BASE}/api/files/${fileId}`, {
+      method: 'DELETE',
+      headers: this.getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to delete file');
+  }
+
   // Helper for multipart upload
   async uploadFile(file: File, onProgress: (percent: number) => void) {
     const PART_SIZE = 5 * 1024 * 1024; // 5MB MinIO part size minimum usually
