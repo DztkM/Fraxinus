@@ -13,7 +13,9 @@ interface ApiKeyInfo {
 interface Namespace {
   id: string
   name: string
-  storage_quota_bytes: number | null
+  quota_bytes: number | null
+  used_bytes: number
+  files_count: number
   created_at: string
   updated_at: string
   api_keys: ApiKeyInfo[]
@@ -100,7 +102,7 @@ const createNamespace = async () => {
       },
       body: JSON.stringify({
         name: newName.value,
-        storage_quota_bytes: newQuota.value
+        quota_bytes: newQuota.value
       })
     })
     
@@ -113,7 +115,9 @@ const createNamespace = async () => {
     createdNamespace.value = {
       id: data.id,
       name: data.name,
-      storage_quota_bytes: data.storage_quota_bytes,
+      quota_bytes: data.quota_bytes,
+      used_bytes: data.used_bytes,
+      files_count: data.files_count,
       created_at: data.created_at,
       updated_at: data.updated_at,
       api_keys: []
@@ -339,7 +343,10 @@ onMounted(() => {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Storage Quota</th>
+                <th>Limit</th>
+                <th>Used</th>
+                <th>Files</th>
+                <th>Created At</th>
                 <th>API Keys</th>
               </tr>
             </thead>
@@ -349,7 +356,9 @@ onMounted(() => {
                   <div class="font-medium">{{ ns.name }}</div>
                   <div class="date-cell">Created: {{ formatDate(ns.created_at) }}</div>
                 </td>
-                <td>{{ formatBytes(ns.storage_quota_bytes) }}</td>
+                <td>{{ formatBytes(ns.quota_bytes) }}</td>
+                <td>{{ formatBytes(ns.used_bytes) }}</td>
+                <td>{{ ns.files_count }}</td>
                 <td>
                   <div class="keys-container">
                     <div v-if="ns.api_keys.length > 0" class="keys-list">

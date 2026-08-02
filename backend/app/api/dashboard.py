@@ -46,6 +46,26 @@ async def create_namespace(
             detail="Storage quota not allocated. Please contact administrator."
         )
 
+    # Check global quota limits
+    if quota.allocated_quota_bytes is not None:
+        if namespace_in.quota_bytes is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot create unlimited namespace when global quota is bounded."
+            )
+            
+        used_result = await db.execute(
+            select(func.coalesce(func.sum(Namespace.quota_bytes), 0))
+            .where(Namespace.author_id == auth_ctx.user_id)
+        )
+        used_so_far = used_result.scalar_one()
+        
+        if used_so_far + namespace_in.quota_bytes > quota.allocated_quota_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough global quota to allocate to this namespace."
+            )
+
     # Check if namespace with this name already exists
     result = await db.execute(select(Namespace).where(Namespace.name == namespace_in.name))
     if result.scalars().first():
@@ -56,7 +76,7 @@ async def create_namespace(
     
     new_namespace = Namespace(
         name=namespace_in.name,
-        storage_quota_bytes=namespace_in.storage_quota_bytes,
+        quota_bytes=namespace_in.quota_bytes,
         author_id=auth_ctx.user_id
     )
     
@@ -67,7 +87,9 @@ async def create_namespace(
     return NamespaceCreateResponse(
         id=new_namespace.id,
         name=new_namespace.name,
-        storage_quota_bytes=new_namespace.storage_quota_bytes,
+        quota_bytes=new_namespace.quota_bytes,
+        used_bytes=new_namespace.used_bytes,
+        files_count=new_namespace.files_count,
         created_at=new_namespace.created_at,
         updated_at=new_namespace.updated_at,
         api_keys=[]
@@ -101,7 +123,11 @@ async def get_dashboard_quota(
     if quota:
         allocated = quota.allocated_quota_bytes
 
-    used = 42
+    used_result = await db.execute(
+        select(func.coalesce(func.sum(Namespace.quota_bytes), 0))
+        .where(Namespace.author_id == auth_ctx.user_id)
+    )
+    used = used_result.scalar_one()
     
     return QuotaInfo(
         allocated=allocated,

@@ -4,7 +4,7 @@ from datetime import datetime
 
 class NamespaceBase(BaseModel):
     name: str
-    storage_quota_bytes: int | None = None
+    quota_bytes: int | None = None
 
 class NamespaceCreate(NamespaceBase):
     pass
@@ -22,6 +22,8 @@ class ApiKeyCreate(BaseModel):
 
 class NamespaceResponse(NamespaceBase):
     id: uuid.UUID
+    used_bytes: int
+    files_count: int
     created_at: datetime
     updated_at: datetime
     
