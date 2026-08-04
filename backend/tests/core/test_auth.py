@@ -1,7 +1,8 @@
 import pytest
+import hashlib
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 import jwt
 
 from core.auth import get_current_user, get_clerk_user, CLERK_NAMESPACE_ID, AuthContext
@@ -14,49 +15,75 @@ def mock_request():
     request.headers = {}
     return request
 
+@pytest.fixture
+def mock_db():
+    return AsyncMock()
+
 @pytest.mark.asyncio
-async def test_missing_token(mock_request):
+async def test_missing_token(mock_request, mock_db):
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(mock_request, None, None)
+        await get_current_user(mock_request, None, None, mock_db)
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "Missing authentication token"
 
 @pytest.mark.asyncio
-async def test_b2b_token_success(mock_request):
-    # Generate a valid B2B token
-    b2b_token = jwt.encode(
-        {"namespace_id": "b2b-namespace-123"},
-        settings.SECRET_KEY,
-        algorithm="HS256"
-    )
-    auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials=b2b_token)
+async def test_b2b_api_key_success(mock_request, mock_db):
+    api_key_str = "valid_api_key_123"
+    auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials=api_key_str)
     x_user_id = "b2b_user_1"
 
-    ctx = await get_current_user(mock_request, x_user_id, auth)
+    # Mock DB response
+    mock_result = Mock()
+    mock_api_key_obj = Mock()
+    mock_api_key_obj.namespace_id = "b2b-namespace-123"
+    mock_result.scalars.return_value.first.return_value = mock_api_key_obj
+    mock_db.execute.return_value = mock_result
+
+    ctx = await get_current_user(mock_request, x_user_id, auth, mock_db)
+    
     assert isinstance(ctx, AuthContext)
     assert ctx.user_id == "b2b_user_1"
     assert ctx.namespace_id == "b2b-namespace-123"
+    mock_db.execute.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_b2b_token_missing_header(mock_request):
-    b2b_token = jwt.encode(
-        {"namespace_id": "b2b-namespace-123"},
-        settings.SECRET_KEY,
-        algorithm="HS256"
-    )
-    auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials=b2b_token)
-    # Don't set x_user_id
+async def test_b2b_api_key_missing_header(mock_request, mock_db):
+    api_key_str = "valid_api_key_123"
+    auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials=api_key_str)
     x_user_id = None
 
+    # Mock DB response
+    mock_result = Mock()
+    mock_api_key_obj = Mock()
+    mock_api_key_obj.namespace_id = "b2b-namespace-123"
+    mock_result.scalars.return_value.first.return_value = mock_api_key_obj
+    mock_db.execute.return_value = mock_result
+
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(mock_request, x_user_id, auth)
+        await get_current_user(mock_request, x_user_id, auth, mock_db)
     assert exc_info.value.status_code == 400
     assert "Missing X-User-Id header" in exc_info.value.detail
 
 @pytest.mark.asyncio
+async def test_b2b_api_key_invalid(mock_request, mock_db):
+    api_key_str = "invalid_api_key"
+    auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials=api_key_str)
+    x_user_id = "b2b_user_1"
+
+    # Mock DB response returning None
+    mock_result = Mock()
+    mock_result.scalars.return_value.first.return_value = None
+    mock_db.execute.return_value = mock_result
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(mock_request, x_user_id, auth, mock_db)
+    assert exc_info.value.status_code == 401
+    assert "Invalid token or API key" in exc_info.value.detail
+
+@pytest.mark.asyncio
 @patch("core.auth.jwks_client.get_signing_key_from_jwt")
 @patch("core.auth.jwt.decode")
-async def test_clerk_token_success(mock_jwt_decode, mock_get_signing_key, mock_request):
+async def test_clerk_token_success(mock_jwt_decode, mock_get_signing_key, mock_request, mock_db):
     # Mock JWKS and JWT decode for Clerk token
     mock_get_signing_key.return_value.key = "fake_key"
     mock_jwt_decode.return_value = {"sub": "clerk_user_1"}
@@ -64,14 +91,7 @@ async def test_clerk_token_success(mock_jwt_decode, mock_get_signing_key, mock_r
     clerk_token = "fake.clerk.token"
     auth = HTTPAuthorizationCredentials(scheme="Bearer", credentials=clerk_token)
 
-    def mock_decode_side_effect(token, key, algorithms, **kwargs):
-        if key == settings.SECRET_KEY:
-            raise jwt.InvalidTokenError("Not a B2B token")
-        return {"sub": "clerk_user_1"}
-        
-    mock_jwt_decode.side_effect = mock_decode_side_effect
-
-    ctx = await get_current_user(mock_request, None, auth)
+    ctx = await get_current_user(mock_request, None, auth, mock_db)
     assert isinstance(ctx, AuthContext)
     assert ctx.user_id == "clerk_user_1"
     assert ctx.namespace_id == CLERK_NAMESPACE_ID

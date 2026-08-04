@@ -51,7 +51,7 @@ const checkAuth = async () => {
         <Show when="signed-in">
           <nav class="main-nav">
             <router-link to="/" class="nav-link" exact-active-class="active">Files</router-link>
-            <router-link to="/admin" class="nav-link" active-class="active">Admin Panel</router-link>
+            <router-link to="/dashboard" class="nav-link" active-class="active">Dashboard</router-link>
           </nav>
         </Show>
       </div>

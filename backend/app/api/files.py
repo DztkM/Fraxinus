@@ -12,6 +12,9 @@ from core.auth import get_current_user, AuthContext
 from models.file import File
 from models.folder import Folder
 from models.physical_file import PhysicalFile
+from models.namespace import Namespace
+from models.user_quota import B2BUserQuota
+from sqlalchemy import func
 from models.permissions import FileAllowedUser, FolderAllowedUser
 from schemas.file import (
     FileUploadInitRequest,
@@ -49,6 +52,20 @@ async def init_upload(
         if folder.path:
             path = f"{folder.path}.{path}"
         actual_access_level = folder.actual_access_level
+
+    namespace_result = await db.execute(select(Namespace).where(Namespace.id == auth_ctx.namespace_id))
+    namespace = namespace_result.scalar_one_or_none()
+    if not namespace:
+        raise HTTPException(status_code=404, detail="Namespace not found")
+        
+    author_id = namespace.author_id
+
+    if namespace.name != "clerk" and namespace.quota_bytes is not None:
+        if namespace.used_bytes + request.size > namespace.quota_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Namespace storage quota exceeded."
+            )
 
     internal_key = str(uuid.uuid4())
     
@@ -100,9 +117,13 @@ async def init_upload(
         physical_file_id=pf.id,
     )
     db.add(file_record)
+    
+    namespace.used_bytes += pf.size
+    namespace.files_count += 1
+    
     await db.commit()
     await db.refresh(file_record)
-    
+
     return FileUploadInitResponse(
         file_id=file_record.id,
         upload_id=upload_id,
@@ -148,6 +169,7 @@ async def complete_upload(
         
     # Update File status
     file_record.status = "completed"
+    
     await db.commit()
     
     return {"status": "success"}
@@ -245,6 +267,14 @@ async def delete_file(
     
     await db.delete(file_record)
     await db.flush()
+    
+    namespace_result = await db.execute(select(Namespace).where(Namespace.id == auth_ctx.namespace_id))
+    namespace = namespace_result.scalar_one()
+    pf_result = await db.execute(select(PhysicalFile).where(PhysicalFile.id == physical_file_id))
+    pf = pf_result.scalar_one()
+        
+    namespace.used_bytes = max(0, namespace.used_bytes - pf.size)
+    namespace.files_count = max(0, namespace.files_count - 1)
     
     # Check if physical file is still referenced
     other_files_result = await db.execute(

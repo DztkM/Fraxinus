@@ -1,10 +1,15 @@
 from fastapi import Request, HTTPException, Security, Header, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+import hashlib
 import jwt
 from jwt import PyJWKClient
 from pydantic import BaseModel, Field
 
 from core.config import settings
+from core.database import get_db
+from models.api_key import NamespaceAPIKey
 
 CLERK_FRONTEND_API = settings.CLERK_FRONTEND_API
 JWKS_URL = f"{CLERK_FRONTEND_API}/.well-known/jwks.json"
@@ -20,7 +25,8 @@ class AuthContext(BaseModel):
 async def get_current_user(
         request: Request,
         x_user_id: str | None = Header(default=None, alias="X-User-Id", description="Required for B2B API requests"),
-        auth: HTTPAuthorizationCredentials = Security(security)
+        auth: HTTPAuthorizationCredentials = Security(security),
+        db: AsyncSession = Depends(get_db)
 ) -> AuthContext | None:
     if request.query_params.get("share_token"):
         return None
@@ -33,24 +39,7 @@ async def get_current_user(
     
     token = auth.credentials
 
-    # try to decode as B2B token
-    try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
-        # If it's our token, it must have namespace_id
-        namespace_id = payload.get("namespace_id")
-        if namespace_id:
-            if not x_user_id:
-                raise HTTPException(status_code=400, detail="Missing X-User-Id header for B2B request")
-            return AuthContext(user_id=x_user_id, namespace_id=namespace_id)
-    except jwt.InvalidTokenError:
-        pass # Not a valid B2B token, fallback to Clerk
-
-    # if it's not a B2B token, it might be a Clerk token
+    # Try to decode as Clerk token first
     try:
         signing_key = jwks_client.get_signing_key_from_jwt(token)
         payload = jwt.decode(
@@ -67,16 +56,29 @@ async def get_current_user(
                 detail="user_id not found in token payload"
             )
         return AuthContext(user_id=user_id, namespace_id=CLERK_NAMESPACE_ID)
-
-    except jwt.ExpiredSignatureError as e:
-        raise HTTPException(status_code=401, detail=f"Token has expired: {str(e)}")
-    except jwt.InvalidTokenError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
-    except jwt.PyJWKClientError:
-        raise HTTPException(
-            status_code=500, 
-            detail="Unable to fetch public keys from identity provider"
-        )
+    
+    except (jwt.ExpiredSignatureError, jwt.PyJWKClientError) as e:
+        # It's a JWT but it failed validation
+        raise HTTPException(status_code=401, detail=f"Token validation failed: {str(e)}")
+    except jwt.InvalidTokenError:
+        # Not a valid Clerk JWT, fallback to checking as B2B API key
+        pass
+    
+    # Try B2B API key
+    key_hash = hashlib.sha256(token.encode()).hexdigest()
+    result = await db.execute(
+        select(NamespaceAPIKey)
+        .where(NamespaceAPIKey.key_hash == key_hash)
+    )
+    api_key = result.scalars().first()
+    
+    if api_key:
+        if not x_user_id:
+            raise HTTPException(status_code=400, detail="Missing X-User-Id header for B2B request")
+        return AuthContext(user_id=x_user_id, namespace_id=str(api_key.namespace_id))
+    
+    # It's neither a valid Clerk JWT nor a valid API key
+    raise HTTPException(status_code=401, detail="Invalid token or API key")
 
 async def get_clerk_user(
         ctx: AuthContext | None = Depends(get_current_user)

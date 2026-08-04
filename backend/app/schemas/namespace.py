@@ -4,27 +4,35 @@ from datetime import datetime
 
 class NamespaceBase(BaseModel):
     name: str
-    storage_quota_bytes: int | None = None
+    quota_bytes: int | None = None
 
 class NamespaceCreate(NamespaceBase):
     pass
 
+class ApiKeyInfo(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ApiKeyCreate(BaseModel):
+    name: str
+    namespace_id: uuid.UUID
+
 class NamespaceResponse(NamespaceBase):
     id: uuid.UUID
+    used_bytes: int
+    files_count: int
     created_at: datetime
     updated_at: datetime
     
-    api_key_hash: str | None = Field(default=None, exclude=True)
-    
-    @computed_field
-    @property
-    def has_api_key(self) -> bool:
-        return self.api_key_hash is not None
+    api_keys: list[ApiKeyInfo] = Field(default_factory=list)
     
     model_config = ConfigDict(from_attributes=True)
 
 class NamespaceCreateResponse(NamespaceResponse):
-    api_key: str
+    pass
 
-class ApiKeyResponse(BaseModel):
+class ApiKeyResponse(ApiKeyInfo):
     api_key: str

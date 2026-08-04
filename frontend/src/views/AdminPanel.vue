@@ -1,36 +1,34 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAuth } from '@clerk/vue'
+import { useRouter } from 'vue-router'
 
 const { getToken } = useAuth()
+const router = useRouter()
 
-interface Namespace {
-  id: string
-  name: string
-  storage_quota_bytes: number | null
+interface UserQuota {
+  user_id: string
+  allocated_quota_bytes: number
   created_at: string
   updated_at: string
-  has_api_key: boolean
 }
 
-const namespaces = ref<Namespace[]>([])
+const quotas = ref<UserQuota[]>([])
 const isLoading = ref(false)
 const errorMsg = ref('')
 
 // Form state
-const newName = ref('')
-const newQuota = ref<number | null>(null)
-const isCreating = ref(false)
+const targetUserId = ref('')
+const newQuotaMb = ref<number | null>(null)
+const isSubmitting = ref(false)
+const successMsg = ref('')
 
-const processingIds = ref<Record<string, boolean>>({})
+const editingId = ref<string | null>(null)
+const editQuotaMb = ref<number | null>(null)
 
-// Result state
-const createdApiKey = ref('')
-const createdNamespace = ref<Namespace | null>(null)
+const API_URL = 'http://localhost:8000/v1/api/admin/quotas'
 
-const API_URL = 'http://localhost:8000/v1/api/admin/namespaces'
-
-const fetchNamespaces = async () => {
+const fetchQuotas = async () => {
   isLoading.value = true
   errorMsg.value = ''
   try {
@@ -38,10 +36,16 @@ const fetchNamespaces = async () => {
     const response = await fetch(API_URL, {
       headers: { Authorization: `Bearer ${token}` }
     })
-    if (!response.ok) {
-      throw new Error('Failed to fetch namespaces')
+    
+    if (response.status === 403) {
+      router.push('/dashboard')
+      return
     }
-    namespaces.value = await response.json()
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch quotas')
+    }
+    quotas.value = await response.json()
   } catch (err: any) {
     errorMsg.value = err.message || 'An error occurred'
   } finally {
@@ -49,66 +53,90 @@ const fetchNamespaces = async () => {
   }
 }
 
-const createNamespace = async () => {
-  if (!newName.value) return
-  isCreating.value = true
+const setQuota = async () => {
+  if (!targetUserId.value) return
+  
+  isSubmitting.value = true
   errorMsg.value = ''
-  createdApiKey.value = ''
-  createdNamespace.value = null
+  successMsg.value = ''
   
   try {
     const token = await getToken.value()
-    const response = await fetch(API_URL, {
+    const quotaBytes = newQuotaMb.value === null || newQuotaMb.value === '' ? null : newQuotaMb.value * 1024 * 1024
+    
+    const response = await fetch(`${API_URL}/${targetUserId.value}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
-        name: newName.value,
-        storage_quota_bytes: newQuota.value
+        allocated_quota_bytes: quotaBytes
+      })
+    })
+    
+    if (!response.ok) {
+      if (response.status === 409) {
+        throw new Error('Quota for this user already exists. Click the row in the table to edit it.')
+      }
+      const errData = await response.json().catch(() => ({}))
+      throw new Error(errData.detail || 'Failed to create quota')
+    }
+    
+    successMsg.value = `Quota for ${targetUserId.value} successfully created.`
+    targetUserId.value = ''
+    newQuotaMb.value = null
+    
+    await fetchQuotas()
+  } catch (err: any) {
+    errorMsg.value = err.message || 'An error occurred'
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+const startEdit = (q: UserQuota) => {
+  editingId.value = q.user_id
+  editQuotaMb.value = q.allocated_quota_bytes === null ? null : q.allocated_quota_bytes / (1024 * 1024)
+}
+
+const saveEdit = async (userId: string) => {
+  isSubmitting.value = true
+  errorMsg.value = ''
+  successMsg.value = ''
+  
+  try {
+    const token = await getToken.value()
+    const quotaBytes = editQuotaMb.value === null || editQuotaMb.value === '' ? null : editQuotaMb.value * 1024 * 1024
+    
+    const response = await fetch(`${API_URL}/${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        allocated_quota_bytes: quotaBytes
       })
     })
     
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}))
-      throw new Error(errData.detail || 'Failed to create namespace')
+      throw new Error(errData.detail || 'Failed to update quota')
     }
     
-    const data = await response.json()
-    createdApiKey.value = data.api_key
-    createdNamespace.value = {
-      id: data.id,
-      name: data.name,
-      storage_quota_bytes: data.storage_quota_bytes,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-      has_api_key: true
-    }
+    successMsg.value = `Quota for ${userId} successfully updated.`
+    editingId.value = null
     
-    // Add to list and reset form
-    namespaces.value.push(createdNamespace.value)
-    newName.value = ''
-    newQuota.value = null
+    await fetchQuotas()
   } catch (err: any) {
     errorMsg.value = err.message || 'An error occurred'
   } finally {
-    isCreating.value = false
+    isSubmitting.value = false
   }
 }
 
-const copyApiKey = async () => {
-  if (!createdApiKey.value) return
-  try {
-    await navigator.clipboard.writeText(createdApiKey.value)
-    alert('API Key copied to clipboard!')
-  } catch (err) {
-    console.error('Failed to copy', err)
-  }
-}
-
-const formatBytes = (bytes: number | null) => {
-  if (bytes === null) return 'Unlimited'
+const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0 Bytes'
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
@@ -120,204 +148,114 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString()
 }
 
-const regenerateKey = async (nsId: string) => {
-  if (!confirm('Are you sure you want to regenerate the API key? The old key will immediately stop working.')) return
-  
-  processingIds.value[nsId] = true
-  errorMsg.value = ''
-  createdApiKey.value = ''
-  
-  try {
-    const token = await getToken.value()
-    const response = await fetch(`${API_URL}/${nsId}/api-key`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}))
-      throw new Error(errData.detail || 'Failed to regenerate API key')
-    }
-    
-    const data = await response.json()
-    createdApiKey.value = data.api_key
-    
-    // Update the namespace state locally
-    const ns = namespaces.value.find(n => n.id === nsId)
-    if (ns) {
-      ns.has_api_key = true
-    }
-    
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  } catch (err: any) {
-    errorMsg.value = err.message || 'An error occurred'
-  } finally {
-    processingIds.value[nsId] = false
-  }
-}
-
-const deleteKey = async (nsId: string) => {
-  if (!confirm('Are you sure you want to delete this API key? B2B access for this namespace will be revoked until a new key is generated.')) return
-  
-  processingIds.value[nsId] = true
-  errorMsg.value = ''
-  
-  try {
-    const token = await getToken.value()
-    const response = await fetch(`${API_URL}/${nsId}/api-key`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}))
-      throw new Error(errData.detail || 'Failed to delete API key')
-    }
-    
-    alert('API Key successfully deleted.')
-    
-    // Update the namespace state locally
-    const ns = namespaces.value.find(n => n.id === nsId)
-    if (ns) {
-      ns.has_api_key = false
-    }
-  } catch (err: any) {
-    errorMsg.value = err.message || 'An error occurred'
-  } finally {
-    processingIds.value[nsId] = false
-  }
-}
-
 onMounted(() => {
-  fetchNamespaces()
+  fetchQuotas()
 })
 </script>
 
 <template>
   <div class="admin-panel">
     <div class="header-section">
-      <h1>B2B Integration</h1>
-      <p>Manage your namespaces and API keys for backend-to-backend integration.</p>
+      <div class="header-content">
+        <div>
+          <h1>Admin Control Panel</h1>
+          <p>Manage B2B storage quotas across the platform.</p>
+        </div>
+        <router-link to="/dashboard" class="btn btn-secondary">
+          Back to Dashboard
+        </router-link>
+      </div>
     </div>
 
     <div v-if="errorMsg" class="error-banner">
       {{ errorMsg }}
     </div>
+    <div v-if="successMsg" class="success-banner">
+      {{ successMsg }}
+    </div>
 
     <div class="grid-layout">
-      <!-- Create Section -->
-      <div class="card create-card">
-        <h2>Create Namespace</h2>
-        <p class="subtitle">Create a new isolated environment for your integration.</p>
+      <!-- Set Quota Form -->
+      <div class="card">
+        <h2>Set User Quota</h2>
+        <p class="subtitle">Assign a new storage limit to a Clerk User ID.</p>
         
-        <form @submit.prevent="createNamespace" class="create-form">
+        <form @submit.prevent="setQuota">
           <div class="form-group">
-            <label for="name">Namespace Name</label>
+            <label for="userId">Clerk User ID</label>
             <input 
-              id="name" 
-              v-model="newName" 
+              id="userId" 
+              v-model="targetUserId" 
               type="text" 
               required
-              placeholder="e.g. Production App"
+              placeholder="e.g. user_2Pq..."
             >
           </div>
           
           <div class="form-group">
-            <label for="quota">Storage Quota (Bytes) <span class="optional">(Optional)</span></label>
+            <label for="quotaMb">Quota in Megabytes (MB)</label>
             <input 
-              id="quota" 
-              v-model="newQuota" 
+              id="quotaMb" 
+              v-model="newQuotaMb" 
               type="number" 
               min="0"
               placeholder="Leave empty for unlimited"
             >
           </div>
           
-          <button type="submit" class="btn btn-primary" :disabled="isCreating || !newName">
-            {{ isCreating ? 'Creating...' : 'Create Namespace' }}
+          <button type="submit" class="btn btn-primary" :disabled="isSubmitting || !targetUserId">
+            {{ isSubmitting ? 'Creating...' : 'Set Quota' }}
           </button>
         </form>
-
-        <div v-if="createdApiKey" class="api-key-result">
-          <div class="success-header">
-            <span class="icon">✅</span>
-            <h3>API Key Ready!</h3>
-          </div>
-          <p class="warning-text">
-            <strong>IMPORTANT:</strong> Copy this API key now. You won't be able to see it again!
-          </p>
-          <div class="key-box">
-            <code>{{ createdApiKey }}</code>
-            <button @click="copyApiKey" class="btn btn-secondary btn-sm" title="Copy API Key">
-              Copy
-            </button>
-          </div>
-        </div>
       </div>
 
-      <!-- List Section -->
-      <div class="card list-card">
+      <!-- Quota List -->
+      <div class="card">
         <div class="list-header">
-          <h2>Your Namespaces</h2>
-          <button @click="fetchNamespaces" class="btn btn-secondary btn-sm" :disabled="isLoading">
+          <h2>Configured Quotas</h2>
+          <button @click="fetchQuotas" class="btn btn-secondary btn-sm" :disabled="isLoading">
             ↻ Refresh
           </button>
         </div>
         
         <div v-if="isLoading" class="loading-state">
-          Loading namespaces...
+          Loading quotas...
         </div>
         
-        <div v-else-if="namespaces.length === 0" class="empty-state">
-          No namespaces found. Create one to get started.
+        <div v-else-if="quotas.length === 0" class="empty-state">
+          No quotas configured yet.
         </div>
         
         <div v-else class="table-container">
-          <table class="namespaces-table">
+          <table class="data-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Storage Quota</th>
-                <th>Created At</th>
-                <th>Actions</th>
+                <th>User ID</th>
+                <th>Allocated Quota</th>
+                <th>Last Updated</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="ns in namespaces" :key="ns.id">
-                <td class="font-medium">{{ ns.name }}</td>
-                <td>{{ formatBytes(ns.storage_quota_bytes) }}</td>
-                <td class="date-cell">{{ formatDate(ns.created_at) }}</td>
-                <td>
-                  <div v-if="ns.has_api_key" class="action-buttons">
-                    <button 
-                      @click="regenerateKey(ns.id)" 
-                      class="btn btn-secondary btn-sm" 
-                      :disabled="processingIds[ns.id]"
-                      title="Generate new API Key"
-                    >
-                      Recreate Key
-                    </button>
-                    <button 
-                      @click="deleteKey(ns.id)" 
-                      class="btn btn-danger btn-sm" 
-                      :disabled="processingIds[ns.id]"
-                      title="Revoke active API Key"
-                    >
-                      Delete Key
-                    </button>
+              <tr v-for="q in quotas" :key="q.user_id">
+                <td><code class="user-id-badge">{{ q.user_id }}</code></td>
+                <td class="font-medium">
+                  <div v-if="editingId === q.user_id" class="inline-edit">
+                    <input 
+                      type="number" 
+                      v-model="editQuotaMb" 
+                      placeholder="Empty for unlimited" 
+                      min="0" 
+                      class="small-input" 
+                    />
+                    <button @click="saveEdit(q.user_id)" class="btn btn-primary btn-sm" :disabled="isSubmitting">Save</button>
+                    <button @click="editingId = null" class="btn btn-secondary btn-sm" :disabled="isSubmitting">Cancel</button>
                   </div>
-                  <div v-else class="action-buttons no-key-actions">
-                    <span class="no-key-text">No key yet</span>
-                    <button 
-                      @click="regenerateKey(ns.id)" 
-                      class="btn btn-primary btn-sm" 
-                      :disabled="processingIds[ns.id]"
-                      title="Create API Key"
-                    >
-                      Create Key
-                    </button>
+                  <div v-else @click="startEdit(q)" class="clickable-cell" title="Click to edit">
+                    {{ q.allocated_quota_bytes === null ? 'Unlimited' : formatBytes(q.allocated_quota_bytes) }}
+                    <span class="edit-icon">✎</span>
                   </div>
                 </td>
+                <td class="date-cell">{{ formatDate(q.updated_at) }}</td>
               </tr>
             </tbody>
           </table>
@@ -338,6 +276,12 @@ onMounted(() => {
   margin-bottom: 2rem;
 }
 
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
 .header-section h1 {
   font-size: 2rem;
   color: var(--color-heading);
@@ -353,6 +297,15 @@ onMounted(() => {
   background-color: #fef2f2;
   border-left: 4px solid #ef4444;
   color: #991b1b;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 2rem;
+}
+
+.success-banner {
+  background-color: #f0fdf4;
+  border-left: 4px solid #22c55e;
+  color: #166534;
   padding: 1rem;
   border-radius: 4px;
   margin-bottom: 2rem;
@@ -401,12 +354,6 @@ onMounted(() => {
   color: var(--color-heading);
 }
 
-.optional {
-  font-weight: normal;
-  color: #94a3b8;
-  font-size: 0.85rem;
-}
-
 input[type="text"],
 input[type="number"] {
   width: 100%;
@@ -423,50 +370,6 @@ input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.api-key-result {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  background-color: #f0fdfa;
-  border: 1px solid #5eead4;
-  border-radius: 8px;
-}
-
-.success-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.success-header h3 {
-  color: #0f766e;
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.warning-text {
-  color: #991b1b;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.key-box {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #1e293b;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  gap: 1rem;
-}
-
-.key-box code {
-  color: #a7f3d0;
-  font-family: monospace;
-  word-break: break-all;
-  font-size: 1.1rem;
 }
 
 .list-header {
@@ -493,25 +396,25 @@ input:focus {
   overflow-x: auto;
 }
 
-.namespaces-table {
+.data-table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.namespaces-table th,
-.namespaces-table td {
+.data-table th,
+.data-table td {
   padding: 1rem;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
 }
 
-.namespaces-table th {
+.data-table th {
   font-weight: 600;
   color: var(--color-heading);
   background-color: var(--color-background-soft);
 }
 
-.namespaces-table tr:hover td {
+.data-table tr:hover td {
   background-color: var(--color-background-mute);
 }
 
@@ -520,27 +423,17 @@ input:focus {
   color: var(--color-heading);
 }
 
+.user-id-badge {
+  background-color: #e2e8f0;
+  color: #334155;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
 .date-cell {
   color: var(--color-text-light, #64748b);
-  font-size: 0.9rem;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.no-key-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.no-key-text {
-  font-size: 0.9rem;
-  color: var(--color-text-light, #64748b);
-  font-style: italic;
+  font-size: 0.85rem;
 }
 
 .btn {
@@ -552,6 +445,8 @@ input:focus {
   font-weight: 500;
   transition: all 0.2s;
   font-family: inherit;
+  text-decoration: none;
+  display: inline-block;
 }
 
 .btn:disabled {
@@ -562,7 +457,6 @@ input:focus {
 .btn-primary {
   background-color: #0f172a;
   color: white;
-  width: 100%;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -580,19 +474,46 @@ input:focus {
   background-color: #f1f5f9;
 }
 
-.btn-danger {
-  background-color: transparent;
-  border-color: #fca5a5;
-  color: #ef4444;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background-color: #fef2f2;
-}
-
 .btn-sm {
   padding: 0.35rem 0.75rem;
   font-size: 0.85rem;
-  width: auto;
+}
+
+.inline-edit {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.small-input {
+  padding: 0.35rem 0.5rem !important;
+  font-size: 0.9rem !important;
+  border-radius: 4px !important;
+  width: 150px !important;
+}
+
+.clickable-cell {
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.clickable-cell:hover {
+  background-color: var(--color-background-mute, #f1f5f9);
+}
+
+.edit-icon {
+  opacity: 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  transition: opacity 0.2s;
+}
+
+.clickable-cell:hover .edit-icon {
+  opacity: 1;
 }
 </style>
