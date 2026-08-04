@@ -4,7 +4,6 @@ from sqlalchemy import select
 
 from core.database import get_db
 from core.auth import get_clerk_user, AuthContext
-from core.config import settings
 from models.user_quota import B2BUserQuota
 from schemas.quota import UserQuotaResponse, AdminSetQuotaRequest
 
@@ -15,7 +14,7 @@ router = APIRouter(
 )
 
 async def verify_admin(auth_ctx: AuthContext = Depends(get_clerk_user)):
-    if not settings.ADMIN_USER_ID or auth_ctx.user_id != settings.ADMIN_USER_ID:
+    if not auth_ctx.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     return auth_ctx
 

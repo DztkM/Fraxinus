@@ -117,7 +117,7 @@ async def get_dashboard_quota(
     quota = quota_result.scalar_one_or_none()
     
 
-    is_admin = bool(settings.ADMIN_USER_ID and auth_ctx.user_id == settings.ADMIN_USER_ID)
+    is_admin = auth_ctx.is_admin
     
     allocated = 0
     if quota:

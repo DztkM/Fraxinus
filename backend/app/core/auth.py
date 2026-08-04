@@ -21,6 +21,7 @@ security = HTTPBearer(auto_error=False)
 class AuthContext(BaseModel):
     user_id: str
     namespace_id: str
+    is_admin: bool = False
 
 async def get_current_user(
         request: Request,
@@ -50,12 +51,15 @@ async def get_current_user(
             leeway=60
         )
         user_id = payload.get("sub")
+        public_metadata = payload.get("public_metadata", {})
+        is_admin = public_metadata.get("role") == "admin"
+        
         if not user_id:
             raise HTTPException(
                 status_code=401, 
                 detail="user_id not found in token payload"
             )
-        return AuthContext(user_id=user_id, namespace_id=CLERK_NAMESPACE_ID)
+        return AuthContext(user_id=user_id, namespace_id=CLERK_NAMESPACE_ID, is_admin=is_admin)
     
     except (jwt.ExpiredSignatureError, jwt.PyJWKClientError) as e:
         # It's a JWT but it failed validation
