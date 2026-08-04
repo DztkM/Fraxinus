@@ -1,31 +1,20 @@
 const API_BASE = 'http://localhost:8000';
 
 export class B2BApiClient {
-  private token: string | null = null;
+  private apiKey: string | null = null;
   private userId: string | null = null;
 
   async authenticate(apiKey: string, userId: string) {
-    const response = await fetch(`${API_BASE}/v1/api/b2b/auth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: apiKey })
-    });
-
-    if (!response.ok) {
-      throw new Error('Authentication failed. Check your API Key.');
-    }
-
-    const data = await response.json();
-    this.token = data.access_token;
+    this.apiKey = apiKey;
     this.userId = userId;
   }
 
   getHeaders() {
-    if (!this.token || !this.userId) {
+    if (!this.apiKey || !this.userId) {
       throw new Error('Not authenticated');
     }
     return {
-      'Authorization': `Bearer ${this.token}`,
+      'Authorization': `Bearer ${this.apiKey}`,
       'X-User-Id': this.userId
     };
   }

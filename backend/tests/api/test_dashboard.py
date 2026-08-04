@@ -8,10 +8,16 @@ import uuid
 
 @pytest.mark.asyncio
 async def test_create_api_key(client: AsyncClient, db_session: AsyncSession):
+    from models.user_quota import B2BUserQuota
+    # 0) create a quota for the test user
+    quota = B2BUserQuota(user_id="test_user_123", allocated_quota_bytes=10000)
+    db_session.add(quota)
+    await db_session.commit()
+
     # 1) create a namespace via the API
     response = await client.post("/v1/api/dashboard/namespaces", json={
         "name": "test_namespace_api_key",
-        "storage_quota_bytes": 1000
+        "quota_bytes": 1000
     })
     assert response.status_code == 201
     data = response.json()
@@ -33,10 +39,16 @@ async def test_create_api_key(client: AsyncClient, db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_delete_api_key(client: AsyncClient, db_session: AsyncSession):
+    from models.user_quota import B2BUserQuota
+    # 0) create a quota for the test user
+    quota = B2BUserQuota(user_id="test_user_123", allocated_quota_bytes=10000)
+    db_session.add(quota)
+    await db_session.commit()
+
     # 1) create a namespace via the API
     response = await client.post("/v1/api/dashboard/namespaces", json={
         "name": "test_namespace_delete_key",
-        "storage_quota_bytes": 1000
+        "quota_bytes": 1000
     })
     assert response.status_code == 201
     ns_id = response.json()["id"]
