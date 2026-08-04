@@ -148,8 +148,63 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString()
 }
 
+const userSearchQuery = ref('')
+const userSearchResults = ref<any[]>([])
+const isSearchingUsers = ref(false)
+const showUserDropdown = ref(false)
+let searchTimeout: any = null
+
+const onSearchInput = () => {
+  showUserDropdown.value = true
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(searchUsers, 300)
+}
+
+const searchUsers = async () => {
+  if (!userSearchQuery.value) {
+    userSearchResults.value = []
+    isSearchingUsers.value = false
+    return
+  }
+  
+  isSearchingUsers.value = true
+  try {
+    const token = await getToken.value()
+    const response = await fetch(`http://localhost:8000/v1/api/admin/users?query=${encodeURIComponent(userSearchQuery.value)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    
+    if (response.ok) {
+      userSearchResults.value = await response.json()
+    }
+  } catch (err) {
+    console.error('Failed to search users', err)
+  } finally {
+    isSearchingUsers.value = false
+  }
+}
+
+const selectUser = (user: any) => {
+  targetUserId.value = user.id
+  userSearchQuery.value = user.username || user.email
+  showUserDropdown.value = false
+}
+
+const clearSelectedUser = () => {
+  targetUserId.value = ''
+  userSearchQuery.value = ''
+  userSearchResults.value = []
+}
+
 onMounted(() => {
   fetchQuotas()
+  
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement
+    if (!target.closest('.relative-group')) {
+      showUserDropdown.value = false
+    }
+  })
 })
 </script>
 
@@ -181,15 +236,38 @@ onMounted(() => {
         <p class="subtitle">Assign a new storage limit to a Clerk User ID.</p>
         
         <form @submit.prevent="setQuota">
-          <div class="form-group">
-            <label for="userId">Clerk User ID</label>
+          <div class="form-group relative-group">
+            <label for="userSearch">Clerk User</label>
             <input 
-              id="userId" 
-              v-model="targetUserId" 
+              id="userSearch" 
+              v-model="userSearchQuery" 
+              @input="onSearchInput"
+              @focus="showUserDropdown = true"
               type="text" 
-              required
-              placeholder="e.g. user_2Pq..."
+              placeholder="Search by email or name..."
+              autocomplete="off"
             >
+            <div v-if="showUserDropdown && (isSearchingUsers || userSearchResults.length > 0 || userSearchQuery)" class="dropdown-menu">
+              <div v-if="isSearchingUsers" class="dropdown-item empty-item">Searching...</div>
+              <div v-else-if="userSearchResults.length === 0" class="dropdown-item empty-item">No users found</div>
+              <div v-else 
+                v-for="user in userSearchResults" 
+                :key="user.id" 
+                @click="selectUser(user)"
+                class="dropdown-item"
+              >
+                <div class="user-info">
+                  <span class="user-email">{{ user.username || 'No username' }}</span>
+                  <span class="user-name">{{ user.email }} <template v-if="user.first_name || user.last_name">({{ user.first_name }} {{ user.last_name }})</template></span>
+                </div>
+                <code class="user-id-badge small-badge">{{ user.id }}</code>
+              </div>
+            </div>
+            
+            <div v-if="targetUserId" class="selected-user-info">
+              Selected: <code class="user-id-badge">{{ targetUserId }}</code> 
+              <button type="button" @click="clearSelectedUser" class="btn-text-danger">Clear</button>
+            </div>
           </div>
           
           <div class="form-group">
@@ -230,14 +308,19 @@ onMounted(() => {
           <table class="data-table">
             <thead>
               <tr>
-                <th>User ID</th>
+                <th>User</th>
                 <th>Allocated Quota</th>
                 <th>Last Updated</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="q in quotas" :key="q.user_id">
-                <td><code class="user-id-badge">{{ q.user_id }}</code></td>
+                <td>
+                  <div class="user-info-cell">
+                    <span class="user-username">{{ q.username || 'No username' }}</span>
+                    <code class="user-id-badge small-badge">{{ q.user_id }}</code>
+                  </div>
+                </td>
                 <td class="font-medium">
                   <div v-if="editingId === q.user_id" class="inline-edit">
                     <input 
@@ -354,6 +437,94 @@ onMounted(() => {
   color: var(--color-heading);
 }
 
+.relative-group {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-top: 0.25rem;
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.dropdown-item {
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: var(--color-background-mute, #f1f5f9);
+}
+
+.empty-item {
+  color: var(--color-text-light, #64748b);
+  cursor: default;
+}
+
+.empty-item:hover {
+  background-color: transparent;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-email {
+  font-weight: 500;
+  color: var(--color-heading);
+}
+
+.user-name {
+  font-size: 0.85rem;
+  color: var(--color-text-light, #64748b);
+}
+
+.small-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.35rem;
+}
+
+.selected-user-info {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--color-text-light, #64748b);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-text-danger {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.btn-text-danger:hover {
+  color: #b91c1c;
+}
+
 input[type="text"],
 input[type="number"] {
   width: 100%;
@@ -419,6 +590,18 @@ input:focus {
 }
 
 .font-medium {
+  font-weight: 500;
+  color: var(--color-heading);
+}
+
+.user-info-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.user-username {
   font-weight: 500;
   color: var(--color-heading);
 }
