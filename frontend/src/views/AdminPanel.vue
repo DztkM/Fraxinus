@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuth } from '@clerk/vue'
 import { useRouter } from 'vue-router'
+import QuotaInput from '../components/QuotaInput.vue'
 
 const { getToken } = useAuth()
 const router = useRouter()
@@ -19,12 +20,12 @@ const errorMsg = ref('')
 
 // Form state
 const targetUserId = ref('')
-const newQuotaMb = ref<number | null>(null)
+const newQuotaBytes = ref<number | null>(null)
 const isSubmitting = ref(false)
 const successMsg = ref('')
 
 const editingId = ref<string | null>(null)
-const editQuotaMb = ref<number | null>(null)
+const editQuotaBytes = ref<number | null>(null)
 
 const clusterStorage = ref<{free_bytes: number, total_bytes: number} | null>(null)
 const clusterStorageError = ref('')
@@ -95,10 +96,10 @@ const setQuota = async () => {
   
   try {
     const token = await getToken.value()
-    if (newQuotaMb.value === null || newQuotaMb.value === '') {
+    if (newQuotaBytes.value === null || newQuotaBytes.value === '') {
       throw new Error('Quota cannot be empty/unlimited.')
     }
-    const quotaBytes = newQuotaMb.value * 1024 * 1024
+    const quotaBytes = newQuotaBytes.value
     
     const response = await fetch(`${API_URL}/${targetUserId.value}`, {
       method: 'POST',
@@ -121,7 +122,7 @@ const setQuota = async () => {
     
     successMsg.value = `Quota for ${targetUserId.value} successfully created.`
     targetUserId.value = ''
-    newQuotaMb.value = null
+    newQuotaBytes.value = null
     
     await fetchQuotas()
   } catch (err: any) {
@@ -133,7 +134,7 @@ const setQuota = async () => {
 
 const startEdit = (q: UserQuota) => {
   editingId.value = q.user_id
-  editQuotaMb.value = q.allocated_quota_bytes === null ? null : q.allocated_quota_bytes / (1024 * 1024)
+  editQuotaBytes.value = q.allocated_quota_bytes
 }
 
 const saveEdit = async (userId: string) => {
@@ -143,10 +144,10 @@ const saveEdit = async (userId: string) => {
   
   try {
     const token = await getToken.value()
-    if (editQuotaMb.value === null || editQuotaMb.value === '') {
+    if (editQuotaBytes.value === null || editQuotaBytes.value === '') {
       throw new Error('Quota cannot be empty/unlimited.')
     }
-    const quotaBytes = editQuotaMb.value * 1024 * 1024
+    const quotaBytes = editQuotaBytes.value
     
     const response = await fetch(`${API_URL}/${userId}`, {
       method: 'PATCH',
@@ -342,18 +343,11 @@ onMounted(() => {
           </div>
           
           <div class="form-group">
-            <label for="quotaMb">Quota in Megabytes (MB)</label>
-            <input 
-              id="quotaMb" 
-              v-model="newQuotaMb" 
-              type="number" 
-              min="0"
-              placeholder="Enter quota in MB (required)"
-              required
-            >
+            <label>Quota Size</label>
+            <QuotaInput v-model="newQuotaBytes" :maxBytes="availableToAllocate" required />
           </div>
           
-          <button type="submit" class="btn btn-primary" :disabled="isSubmitting || !targetUserId">
+          <button type="submit" class="btn btn-primary" :disabled="isSubmitting || !targetUserId || newQuotaBytes === null">
             {{ isSubmitting ? 'Creating...' : 'Set Quota' }}
           </button>
         </form>
@@ -395,14 +389,7 @@ onMounted(() => {
                 </td>
                 <td class="font-medium">
                   <div v-if="editingId === q.user_id" class="inline-edit">
-                    <input 
-                      type="number" 
-                      v-model="editQuotaMb" 
-                      placeholder="Quota in MB" 
-                      min="0" 
-                      required
-                      class="small-input" 
-                    />
+                    <QuotaInput v-model="editQuotaBytes" :maxBytes="availableToAllocate + (q.allocated_quota_bytes || 0)" compact required />
                     <button @click="saveEdit(q.user_id)" class="btn btn-primary btn-sm" :disabled="isSubmitting">Save</button>
                     <button @click="editingId = null" class="btn btn-secondary btn-sm" :disabled="isSubmitting">Cancel</button>
                   </div>

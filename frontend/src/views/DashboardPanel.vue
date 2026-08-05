@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAuth } from '@clerk/vue'
+import QuotaInput from '../components/QuotaInput.vue'
 
 const { getToken } = useAuth()
 
@@ -84,6 +85,11 @@ const getQuotaPercentage = () => {
   if (!quota.value || !quota.value.allocated) return 0;
   return Math.min(100, Math.round((quota.value.used / quota.value.allocated) * 100));
 }
+
+const availableNamespaceQuota = computed(() => {
+  if (!quota.value || quota.value.allocated === null) return null;
+  return Math.max(0, quota.value.allocated - quota.value.used);
+})
 
 const createNamespace = async () => {
   if (!newName.value) return
@@ -289,17 +295,11 @@ onMounted(() => {
           </div>
           
           <div class="form-group">
-            <label for="quota">Storage Quota (Bytes) <span class="optional">(Optional)</span></label>
-            <input 
-              id="quota" 
-              v-model="newQuota" 
-              type="number" 
-              min="0"
-              placeholder="Leave empty for unlimited"
-            >
+            <label>Storage Quota</label>
+            <QuotaInput v-model="newQuota" :maxBytes="availableNamespaceQuota" required />
           </div>
           
-          <button type="submit" class="btn btn-primary" :disabled="isCreating || !newName || quota?.allocated === 0">
+          <button type="submit" class="btn btn-primary" :disabled="isCreating || !newName || newQuota === null || quota?.allocated === 0">
             {{ isCreating ? 'Creating...' : 'Create Namespace' }}
           </button>
         </form>
