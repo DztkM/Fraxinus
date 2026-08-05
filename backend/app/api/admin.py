@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 import httpx
 
 from core.database import get_db
@@ -72,12 +72,31 @@ async def set_user_quota(
     auth_ctx: AuthContext = Depends(verify_admin),
     db: AsyncSession = Depends(get_db)
 ):
+    if request.allocated_quota_bytes is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Global quota cannot be unlimited (null)."
+        )
+
     result = await db.execute(select(B2BUserQuota).where(B2BUserQuota.user_id == user_id))
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Quota for this user already exists. Use PATCH to update."
         )
+
+    cluster_storage = await get_cluster_storage(auth_ctx)
+    total_cluster_capacity = cluster_storage.total_bytes
+    
+    sum_result = await db.execute(select(func.coalesce(func.sum(B2BUserQuota.allocated_quota_bytes), 0)))
+    total_allocated = sum_result.scalar_one()
+    
+    if total_allocated + request.allocated_quota_bytes > total_cluster_capacity:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Not enough physical cluster space to allocate this quota. Available to allocate: {total_cluster_capacity - total_allocated} bytes."
+        )
+
 
     quota = B2BUserQuota(
         user_id=user_id,
@@ -96,6 +115,12 @@ async def change_user_quota(
     auth_ctx: AuthContext = Depends(verify_admin),
     db: AsyncSession = Depends(get_db)
 ):
+    if request.allocated_quota_bytes is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Global quota cannot be unlimited (null)."
+        )
+
     result = await db.execute(select(B2BUserQuota).where(B2BUserQuota.user_id == user_id))
     quota = result.scalar_one_or_none()
 
@@ -103,6 +128,22 @@ async def change_user_quota(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Quota for this user not found. Use POST to create."
+        )
+
+    old_quota = quota.allocated_quota_bytes or 0
+    
+    cluster_storage = await get_cluster_storage(auth_ctx)
+    total_cluster_capacity = cluster_storage.total_bytes
+    
+    sum_result = await db.execute(select(func.coalesce(func.sum(B2BUserQuota.allocated_quota_bytes), 0)))
+    total_allocated = sum_result.scalar_one()
+    
+    available_to_allocate = total_cluster_capacity - total_allocated + old_quota
+    
+    if request.allocated_quota_bytes > available_to_allocate:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Not enough physical cluster space to allocate this quota. Available to allocate: {available_to_allocate} bytes."
         )
 
     quota.allocated_quota_bytes = request.allocated_quota_bytes

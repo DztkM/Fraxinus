@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAuth } from '@clerk/vue'
 import { useRouter } from 'vue-router'
 
@@ -25,6 +25,23 @@ const successMsg = ref('')
 
 const editingId = ref<string | null>(null)
 const editQuotaMb = ref<number | null>(null)
+
+const clusterStorage = ref<{free_bytes: number, total_bytes: number} | null>(null)
+const clusterStorageError = ref('')
+
+const totalAllocated = computed(() => {
+  return quotas.value.reduce((acc, q) => acc + (q.allocated_quota_bytes || 0), 0)
+})
+
+const availableToAllocate = computed(() => {
+  if (!clusterStorage.value) return 0
+  return Math.max(0, clusterStorage.value.total_bytes - totalAllocated.value)
+})
+
+const isStorageLow = computed(() => {
+  if (!clusterStorage.value) return false
+  return availableToAllocate.value < clusterStorage.value.total_bytes * 0.1
+})
 
 const API_URL = 'http://localhost:8000/v1/api/admin/quotas'
 
@@ -53,6 +70,22 @@ const fetchQuotas = async () => {
   }
 }
 
+const fetchClusterStorage = async () => {
+  try {
+    const token = await getToken.value()
+    const response = await fetch('http://localhost:8000/v1/api/admin/cluster-storage', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (response.ok) {
+      clusterStorage.value = await response.json()
+    } else {
+      clusterStorageError.value = 'Failed to load cluster storage metrics.'
+    }
+  } catch (err) {
+    clusterStorageError.value = 'Failed to connect to cluster storage API.'
+  }
+}
+
 const setQuota = async () => {
   if (!targetUserId.value) return
   
@@ -62,7 +95,10 @@ const setQuota = async () => {
   
   try {
     const token = await getToken.value()
-    const quotaBytes = newQuotaMb.value === null || newQuotaMb.value === '' ? null : newQuotaMb.value * 1024 * 1024
+    if (newQuotaMb.value === null || newQuotaMb.value === '') {
+      throw new Error('Quota cannot be empty/unlimited.')
+    }
+    const quotaBytes = newQuotaMb.value * 1024 * 1024
     
     const response = await fetch(`${API_URL}/${targetUserId.value}`, {
       method: 'POST',
@@ -107,7 +143,10 @@ const saveEdit = async (userId: string) => {
   
   try {
     const token = await getToken.value()
-    const quotaBytes = editQuotaMb.value === null || editQuotaMb.value === '' ? null : editQuotaMb.value * 1024 * 1024
+    if (editQuotaMb.value === null || editQuotaMb.value === '') {
+      throw new Error('Quota cannot be empty/unlimited.')
+    }
+    const quotaBytes = editQuotaMb.value * 1024 * 1024
     
     const response = await fetch(`${API_URL}/${userId}`, {
       method: 'PATCH',
@@ -198,6 +237,7 @@ const clearSelectedUser = () => {
 
 onMounted(() => {
   fetchQuotas()
+  fetchClusterStorage()
   
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
@@ -227,6 +267,37 @@ onMounted(() => {
     </div>
     <div v-if="successMsg" class="success-banner">
       {{ successMsg }}
+    </div>
+
+    <div v-if="clusterStorage" class="storage-overview-card card">
+      <h2>Cluster Storage Overview</h2>
+      
+      <div v-if="isStorageLow" class="warning-banner">
+        ⚠️ Warning: Less than 10% of physical cluster space is available for allocation.
+      </div>
+      
+      <div class="storage-stats-grid">
+        <div class="stat-box">
+          <span class="stat-label">Total Cluster Capacity</span>
+          <span class="stat-value">{{ formatBytes(clusterStorage.total_bytes) }}</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Total Allocated Quotas</span>
+          <span class="stat-value">{{ formatBytes(totalAllocated) }}</span>
+        </div>
+        <div class="stat-box" :class="{'low-storage': isStorageLow}">
+          <span class="stat-label">Available to Allocate</span>
+          <span class="stat-value">{{ formatBytes(availableToAllocate) }}</span>
+        </div>
+      </div>
+      
+      <div class="progress-bar-container">
+        <div 
+          class="progress-bar-fill" 
+          :class="{'progress-bar-warning': isStorageLow}"
+          :style="{width: Math.min(100, (totalAllocated / clusterStorage.total_bytes) * 100) + '%'}"
+        ></div>
+      </div>
     </div>
 
     <div class="grid-layout">
@@ -277,7 +348,8 @@ onMounted(() => {
               v-model="newQuotaMb" 
               type="number" 
               min="0"
-              placeholder="Leave empty for unlimited"
+              placeholder="Enter quota in MB (required)"
+              required
             >
           </div>
           
@@ -326,8 +398,9 @@ onMounted(() => {
                     <input 
                       type="number" 
                       v-model="editQuotaMb" 
-                      placeholder="Empty for unlimited" 
+                      placeholder="Quota in MB" 
                       min="0" 
+                      required
                       class="small-input" 
                     />
                     <button @click="saveEdit(q.user_id)" class="btn btn-primary btn-sm" :disabled="isSubmitting">Save</button>
@@ -404,6 +477,76 @@ onMounted(() => {
   .grid-layout {
     grid-template-columns: 1fr;
   }
+}
+
+.storage-overview-card {
+  margin-bottom: 2rem;
+}
+
+.warning-banner {
+  background-color: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  color: #b45309;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+
+.storage-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .storage-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-box {
+  background-color: var(--color-background-soft);
+  padding: 1.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-box.low-storage .stat-value {
+  color: #ef4444;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: var(--color-text-light, #64748b);
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-heading);
+}
+
+.progress-bar-container {
+  height: 12px;
+  background-color: var(--color-background-soft);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: #3b82f6;
+  transition: width 0.5s ease;
+}
+
+.progress-bar-warning {
+  background-color: #ef4444;
 }
 
 .card {

@@ -46,13 +46,14 @@ async def create_namespace(
             detail="Storage quota not allocated. Please contact administrator."
         )
 
+    if namespace_in.quota_bytes is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="B2B namespaces must have a strict quota limit. Unlimited (null) is not allowed."
+        )
+        
     # Check global quota limits
     if quota.allocated_quota_bytes is not None:
-        if namespace_in.quota_bytes is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot create unlimited namespace when global quota is bounded."
-            )
             
         used_result = await db.execute(
             select(func.coalesce(func.sum(Namespace.quota_bytes), 0))
