@@ -7,7 +7,8 @@ from core.database import get_db
 from core.auth import get_clerk_user, AuthContext
 from core.config import settings
 from models.user_quota import B2BUserQuota
-from schemas.quota import UserQuotaResponse, AdminSetQuotaRequest
+from schemas.quota import UserQuotaResponse, AdminSetQuotaRequest, ClusterStorageResponse
+import re
 
 router = APIRouter(
     prefix="/v1/api/admin",
@@ -160,4 +161,41 @@ async def search_users(
             })
             
         return result
+
+@router.get("/cluster-storage", response_model=ClusterStorageResponse)
+async def get_cluster_storage(
+    auth_ctx: AuthContext = Depends(verify_admin)
+):
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{settings.MINIO_ENDPOINT}/minio/v2/metrics/cluster")
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Failed to fetch metrics from MinIO")
+            
+            content = response.text
+            
+            free_bytes = 0
+            total_bytes = 0
+            
+            usable_free_match = re.search(r"^minio_cluster_capacity_usable_free_bytes(?:\{[^}]*\})?\s+(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)", content, re.MULTILINE)
+            usable_total_match = re.search(r"^minio_cluster_capacity_usable_total_bytes(?:\{[^}]*\})?\s+(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)", content, re.MULTILINE)
+            
+            if usable_free_match and usable_total_match:
+                free_bytes = int(float(usable_free_match.group(1)))
+                total_bytes = int(float(usable_total_match.group(1)))
+            else:
+                raw_free_match = re.search(r"^minio_cluster_capacity_raw_free_bytes(?:\{[^}]*\})?\s+(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)", content, re.MULTILINE)
+                raw_total_match = re.search(r"^minio_cluster_capacity_raw_total_bytes(?:\{[^}]*\})?\s+(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)", content, re.MULTILINE)
+                if raw_free_match and raw_total_match:
+                    free_bytes = int(float(raw_free_match.group(1)))
+                    total_bytes = int(float(raw_total_match.group(1)))
+            
+            return ClusterStorageResponse(
+                free_bytes=free_bytes,
+                total_bytes=total_bytes
+            )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
 

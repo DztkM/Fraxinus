@@ -17,3 +17,7 @@ class UserQuotaResponse(BaseModel):
     username: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class ClusterStorageResponse(BaseModel):
+    free_bytes: int
+    total_bytes: int
