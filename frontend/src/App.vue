@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Show, SignInButton, SignUpButton, UserButton, useAuth, useUser } from '@clerk/vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
+
+const logoText = computed(() => {
+  if (route.path.startsWith('/dashboard')) return 'Fraxinus Dashboard'
+  if (route.path.startsWith('/admin')) return 'Fraxinus Admin'
+  return 'Fraxinus Drive'
+})
 const { getToken, isLoaded, isSignedIn } = useAuth()
 const { user } = useUser()
 
@@ -57,7 +63,7 @@ const checkAuth = async () => {
 <template>
   <div class="app-container">
     <header class="app-header">
-      <div class="logo">Fraxinus Storage</div>
+      <div class="logo">{{ logoText }}</div>
       <div id="header-controls" class="header-controls">
       </div>
       <div class="auth-controls">
@@ -69,6 +75,7 @@ const checkAuth = async () => {
         </Show>
         <Show when="signed-in">
           <div class="user-actions">
+            <div id="header-actions" style="display: contents;"></div>
             <button class="btn btn-secondary btn-sm" @click="toggleMode">
               {{ route.path === '/dashboard' ? '📁 Go to Files' : '⚙️ Go to Dashboard' }}
             </button>
@@ -117,8 +124,8 @@ const checkAuth = async () => {
 }
 
 .app-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 1rem 2rem;
   background-color: var(--color-background);
@@ -168,6 +175,7 @@ const checkAuth = async () => {
 }
 
 .auth-controls {
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 1rem;

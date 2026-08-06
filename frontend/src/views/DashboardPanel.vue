@@ -256,7 +256,6 @@ onMounted(() => {
     <div class="header-section">
       <div class="header-content">
         <div>
-          <h1>B2B Integration</h1>
           <p>Manage your namespaces and API keys for backend-to-backend integration.</p>
         </div>
         <router-link v-if="quota?.is_admin" to="/admin" class="btn btn-primary admin-link">

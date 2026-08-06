@@ -263,7 +263,6 @@ onMounted(() => {
     <div class="header-section">
       <div class="header-content">
         <div>
-          <h1>Admin Control Panel</h1>
           <p>Manage B2B storage quotas across the platform.</p>
         </div>
         <router-link to="/dashboard" class="btn btn-secondary">

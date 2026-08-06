@@ -493,10 +493,12 @@ const formatDate = (dateString: string) => {
           Shared
         </button>
       </div>
+    </Teleport>
+    <Teleport to="#header-actions" v-if="isMounted">
       <button 
         @click="activeTab === 'all' ? loadAllFiles() : activeTab === 'shared' ? loadSharedItems() : loadExplorer()" 
         :disabled="(activeTab === 'all' ? isLoadingAllFiles : activeTab === 'shared' ? isLoadingShared : isLoadingExplorer) || isUploading" 
-        class="btn btn-icon" 
+        class="btn btn-secondary btn-sm" 
         title="Refresh"
       >
         ↻ Refresh
@@ -897,7 +899,7 @@ const formatDate = (dateString: string) => {
 }
 
 .tab-btn {
-  padding: 0.5rem 1.25rem;
+  padding: 0.35rem 1.25rem;
   border: none;
   border-radius: 6px;
   background: transparent;
