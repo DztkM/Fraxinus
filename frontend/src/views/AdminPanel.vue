@@ -9,6 +9,7 @@ const router = useRouter()
 
 interface UserQuota {
   user_id: string
+  username?: string
   allocated_quota_bytes: number
   created_at: string
   updated_at: string
@@ -98,7 +99,7 @@ const setQuota = async () => {
   
   try {
     const token = await getToken.value()
-    if (newQuotaBytes.value === null || newQuotaBytes.value === '') {
+    if (newQuotaBytes.value === null) {
       throw new Error('Quota cannot be empty/unlimited.')
     }
     const quotaBytes = newQuotaBytes.value
@@ -147,7 +148,7 @@ const saveEdit = async (userId: string) => {
   
   try {
     const token = await getToken.value()
-    if (editQuotaBytes.value === null || editQuotaBytes.value === '') {
+    if (editQuotaBytes.value === null) {
       throw new Error('Quota cannot be empty/unlimited.')
     }
     const quotaBytes = editQuotaBytes.value

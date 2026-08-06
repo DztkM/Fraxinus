@@ -12,14 +12,16 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: number | null): void
 }>()
 
-const MULTIPLIERS: Record<string, number> = {
+const MULTIPLIERS = {
   'MB': 1024 * 1024,
   'GB': 1024 * 1024 * 1024,
   'TB': 1024 * 1024 * 1024 * 1024
-}
+} as const
+
+type UnitType = keyof typeof MULTIPLIERS
 
 const displayValue = ref<number | ''>('')
-const unit = ref<string>('GB')
+const unit = ref<UnitType>('GB')
 const sliderValue = ref<number>(0)
 
 const sliderMax = computed(() => {
