@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Show, SignInButton, SignUpButton, UserButton, useAuth, useUser } from '@clerk/vue'
+import { useRoute, useRouter } from 'vue-router'
 
+const route = useRoute()
+const router = useRouter()
 const { getToken, isLoaded, isSignedIn } = useAuth()
 const { user } = useUser()
 
@@ -12,6 +15,14 @@ const copyMyId = async () => {
     alert('User ID copied to clipboard!')
   } catch (err) {
     console.error('Failed to copy ID', err)
+  }
+}
+
+const toggleMode = () => {
+  if (route.path === '/dashboard') {
+    router.push('/')
+  } else {
+    router.push('/dashboard')
   }
 }
 const authCheckResult = ref<string | null>(null)
@@ -48,12 +59,6 @@ const checkAuth = async () => {
     <header class="app-header">
       <div class="logo">Fraxinus Storage</div>
       <div id="header-controls" class="header-controls">
-        <Show when="signed-in">
-          <nav class="main-nav">
-            <router-link to="/" class="nav-link" exact-active-class="active">Files</router-link>
-            <router-link to="/dashboard" class="nav-link" active-class="active">Dashboard</router-link>
-          </nav>
-        </Show>
       </div>
       <div class="auth-controls">
         <Show when="signed-out">
@@ -64,6 +69,9 @@ const checkAuth = async () => {
         </Show>
         <Show when="signed-in">
           <div class="user-actions">
+            <button class="btn btn-secondary btn-sm" @click="toggleMode">
+              {{ route.path === '/dashboard' ? '📁 Go to Files' : '⚙️ Go to Dashboard' }}
+            </button>
             <button class="btn btn-secondary btn-sm" @click="copyMyId" title="Copy my User ID">
               📋 Copy My ID
             </button>
