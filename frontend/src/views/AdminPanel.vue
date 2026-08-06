@@ -24,6 +24,8 @@ const newQuotaBytes = ref<number | null>(null)
 const isSubmitting = ref(false)
 const successMsg = ref('')
 
+const showSetQuotaModal = ref(false)
+
 const editingId = ref<string | null>(null)
 const editQuotaBytes = ref<number | null>(null)
 
@@ -123,6 +125,7 @@ const setQuota = async () => {
     successMsg.value = `Quota for ${targetUserId.value} successfully created.`
     targetUserId.value = ''
     newQuotaBytes.value = null
+    showSetQuotaModal.value = false
     
     await fetchQuotas()
   } catch (err: any) {
@@ -307,10 +310,14 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="grid-layout">
-      <!-- Set Quota Form -->
-      <div class="card">
-        <h2>Set User Quota</h2>
+    <!-- Modals -->
+    <!-- Set Quota Modal -->
+    <div v-if="showSetQuotaModal" class="modal-overlay" @click.self="showSetQuotaModal = false">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h2>Set User Quota</h2>
+          <button @click="showSetQuotaModal = false" class="close-btn" title="Close">&times;</button>
+        </div>
         <p class="subtitle">Assign a new storage limit to a Clerk User ID.</p>
         
         <form @submit.prevent="setQuota">
@@ -353,20 +360,29 @@ onMounted(() => {
             <QuotaInput v-model="newQuotaBytes" :maxBytes="availableToAllocate" required />
           </div>
           
-          <button type="submit" class="btn btn-primary" :disabled="isSubmitting || !targetUserId || newQuotaBytes === null">
-            {{ isSubmitting ? 'Creating...' : 'Set Quota' }}
-          </button>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" @click="showSetQuotaModal = false">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="isSubmitting || !targetUserId || newQuotaBytes === null">
+              {{ isSubmitting ? 'Creating...' : 'Set Quota' }}
+            </button>
+          </div>
         </form>
       </div>
+    </div>
 
-      <!-- Quota List -->
-      <div class="card">
-        <div class="list-header">
-          <h2>Configured Quotas</h2>
+    <!-- Main Content -->
+    <div class="card">
+      <div class="list-header">
+        <h2>Configured Quotas</h2>
+        <div class="header-actions">
           <button @click="fetchQuotas" class="btn btn-secondary btn-sm" :disabled="isLoading">
             ↻ Refresh
           </button>
+          <button @click="showSetQuotaModal = true" class="btn btn-primary btn-sm">
+            + Set User Quota
+          </button>
         </div>
+      </div>
         
         <div v-if="isLoading" class="loading-state">
           Loading quotas...
@@ -383,6 +399,7 @@ onMounted(() => {
                 <th>User</th>
                 <th>Allocated Quota</th>
                 <th>Last Updated</th>
+                <th style="width: 150px"></th>
               </tr>
             </thead>
             <tbody>
@@ -396,21 +413,26 @@ onMounted(() => {
                 <td class="font-medium">
                   <div v-if="editingId === q.user_id" class="inline-edit">
                     <QuotaInput v-model="editQuotaBytes" :maxBytes="availableToAllocate + (q.allocated_quota_bytes || 0)" compact required />
-                    <button @click="saveEdit(q.user_id)" class="btn btn-primary btn-sm" :disabled="isSubmitting">Save</button>
-                    <button @click="editingId = null" class="btn btn-secondary btn-sm" :disabled="isSubmitting">Cancel</button>
                   </div>
-                  <div v-else @click="startEdit(q)" class="clickable-cell" title="Click to edit">
+                  <div v-else>
                     {{ q.allocated_quota_bytes === null ? 'Unlimited' : formatBytes(q.allocated_quota_bytes) }}
-                    <span class="edit-icon">✎</span>
                   </div>
                 </td>
                 <td class="date-cell">{{ formatDate(q.updated_at) }}</td>
+                <td>
+                  <div v-if="editingId === q.user_id" style="display: flex; gap: 0.5rem;">
+                    <button @click="saveEdit(q.user_id)" class="btn btn-primary btn-sm" :disabled="isSubmitting">Save</button>
+                    <button @click="editingId = null" class="btn btn-secondary btn-sm" :disabled="isSubmitting">Cancel</button>
+                  </div>
+                  <div v-else>
+                    <button @click="startEdit(q)" class="btn btn-secondary btn-sm">✎ Edit</button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
-    </div>
   </div>
 </template>
 
@@ -460,16 +482,68 @@ onMounted(() => {
   margin-bottom: 2rem;
 }
 
-.grid-layout {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 2rem;
+.header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
 }
 
-@media (max-width: 900px) {
-  .grid-layout {
-    grid-template-columns: 1fr;
-  }
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-text-light, #64748b);
+  cursor: pointer;
+  padding: 0;
+  margin-top: -0.25rem;
+}
+
+.close-btn:hover {
+  color: var(--color-heading);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
 }
 
 .storage-overview-card {
