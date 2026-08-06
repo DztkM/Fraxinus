@@ -369,6 +369,23 @@ const handleFileSelect = async (event: Event) => {
   }
 }
 
+const isDraggingOverScreen = ref(false)
+
+const onGlobalDragEnter = (e: DragEvent) => {
+  if (e.dataTransfer?.types.includes('Files')) {
+    isDraggingOverScreen.value = true
+  }
+}
+
+const onOverlayDragLeave = (e: DragEvent) => {
+  isDraggingOverScreen.value = false
+}
+
+const onOverlayDrop = (e: DragEvent) => {
+  isDraggingOverScreen.value = false
+  handleDrop(e)
+}
+
 const handleDrop = async (event: DragEvent) => {
   event.preventDefault()
   if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0) return
@@ -468,7 +485,23 @@ const formatDate = (dateString: string) => {
 </script>
 
 <template>
-  <div class="file-manager">
+  <div class="file-manager" @dragenter.prevent="onGlobalDragEnter">
+    
+    <!-- Fullscreen Drop Overlay -->
+    <div 
+      v-if="isDraggingOverScreen" 
+      class="fullscreen-dropzone"
+      @dragleave.prevent="onOverlayDragLeave"
+      @drop.prevent="onOverlayDrop"
+      @dragover.prevent
+    >
+      <div class="dropzone-content">
+        <span class="upload-icon" style="font-size: 4rem;">☁️</span>
+        <h2>Drop files here to upload</h2>
+        <p>Uploading to: {{ activeTab === 'explorer' ? breadcrumbs[breadcrumbs.length - 1]?.name : 'Root (All Files view)' }}</p>
+      </div>
+    </div>
+
     <Teleport to="#header-controls" v-if="isMounted">
       <div class="tabs">
         <button 
@@ -1100,7 +1133,41 @@ const formatDate = (dateString: string) => {
 .loading-state, .empty-state {
   padding: 3rem;
   text-align: center;
-  color: #64748b;
+}
+
+/* Fullscreen Dropzone */
+.fullscreen-dropzone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 8px dashed #60a5fa;
+  box-sizing: border-box;
+}
+
+.dropzone-content {
+  text-align: center;
+  color: white;
+  pointer-events: none; /* Prevents flickering when dragging over text */
+}
+
+.dropzone-content h2 {
+  font-size: 2.5rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: white;
+}
+
+.dropzone-content p {
+  font-size: 1.25rem;
+  color: #cbd5e1;
 }
 
 .spinner {
