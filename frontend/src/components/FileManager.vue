@@ -369,6 +369,23 @@ const handleFileSelect = async (event: Event) => {
   }
 }
 
+const isDraggingOverScreen = ref(false)
+
+const onGlobalDragEnter = (e: DragEvent) => {
+  if (e.dataTransfer?.types.includes('Files')) {
+    isDraggingOverScreen.value = true
+  }
+}
+
+const onOverlayDragLeave = (e: DragEvent) => {
+  isDraggingOverScreen.value = false
+}
+
+const onOverlayDrop = (e: DragEvent) => {
+  isDraggingOverScreen.value = false
+  handleDrop(e)
+}
+
 const handleDrop = async (event: DragEvent) => {
   event.preventDefault()
   if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0) return
@@ -458,18 +475,33 @@ const getAccessLabel = (level: number) => {
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString)
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date)
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${yyyy}/${mm}/${dd} ${hh}:${min}`
 }
 </script>
 
 <template>
-  <div class="file-manager">
+  <div class="file-manager" @dragenter.prevent="onGlobalDragEnter">
+    
+    <!-- Fullscreen Drop Overlay -->
+    <div 
+      v-if="isDraggingOverScreen" 
+      class="fullscreen-dropzone"
+      @dragleave.prevent="onOverlayDragLeave"
+      @drop.prevent="onOverlayDrop"
+      @dragover.prevent
+    >
+      <div class="dropzone-content">
+        <span class="upload-icon" style="font-size: 4rem;">☁️</span>
+        <h2>Drop files here to upload</h2>
+        <p>Uploading to: {{ activeTab === 'explorer' ? breadcrumbs[breadcrumbs.length - 1]?.name : 'Root (All Files view)' }}</p>
+      </div>
+    </div>
+
     <Teleport to="#header-controls" v-if="isMounted">
       <div class="tabs">
         <button 
@@ -494,10 +526,12 @@ const formatDate = (dateString: string) => {
           Shared
         </button>
       </div>
+    </Teleport>
+    <Teleport to="#header-actions" v-if="isMounted">
       <button 
         @click="activeTab === 'all' ? loadAllFiles() : activeTab === 'shared' ? loadSharedItems() : loadExplorer()" 
         :disabled="(activeTab === 'all' ? isLoadingAllFiles : activeTab === 'shared' ? isLoadingShared : isLoadingExplorer) || isUploading" 
-        class="btn btn-icon" 
+        class="btn btn-secondary btn-sm" 
         title="Refresh"
       >
         ↻ Refresh
@@ -898,7 +932,7 @@ const formatDate = (dateString: string) => {
 }
 
 .tab-btn {
-  padding: 0.5rem 1.25rem;
+  padding: 0.35rem 1.25rem;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -1099,7 +1133,41 @@ const formatDate = (dateString: string) => {
 .loading-state, .empty-state {
   padding: 3rem;
   text-align: center;
-  color: #64748b;
+}
+
+/* Fullscreen Dropzone */
+.fullscreen-dropzone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 8px dashed #60a5fa;
+  box-sizing: border-box;
+}
+
+.dropzone-content {
+  text-align: center;
+  color: white;
+  pointer-events: none; /* Prevents flickering when dragging over text */
+}
+
+.dropzone-content h2 {
+  font-size: 2.5rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: white;
+}
+
+.dropzone-content p {
+  font-size: 1.25rem;
+  color: #cbd5e1;
 }
 
 .spinner {

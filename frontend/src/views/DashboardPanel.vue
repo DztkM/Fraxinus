@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAuth } from '@clerk/vue'
+import QuotaInput from '../components/QuotaInput.vue'
 
 const { getToken } = useAuth()
 
@@ -36,6 +37,9 @@ const errorMsg = ref('')
 const newName = ref('')
 const newQuota = ref<number | null>(null)
 const isCreating = ref(false)
+
+const showCreateNamespaceModal = ref(false)
+const showApiKeyModal = ref(false)
 
 const processingIds = ref<Record<string, boolean>>({})
 const newKeyNames = ref<Record<string, string>>({})
@@ -85,6 +89,11 @@ const getQuotaPercentage = () => {
   return Math.min(100, Math.round((quota.value.used / quota.value.allocated) * 100));
 }
 
+const availableNamespaceQuota = computed(() => {
+  if (!quota.value || quota.value.allocated === null) return null;
+  return Math.max(0, quota.value.allocated - quota.value.used);
+})
+
 const createNamespace = async () => {
   if (!newName.value) return
   isCreating.value = true
@@ -127,6 +136,7 @@ const createNamespace = async () => {
     namespaces.value.push(createdNamespace.value)
     newName.value = ''
     newQuota.value = null
+    showCreateNamespaceModal.value = false
   } catch (err: any) {
     errorMsg.value = err.message || 'An error occurred'
   } finally {
@@ -154,7 +164,13 @@ const formatBytes = (bytes: number | null) => {
 }
 
 const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleString()
+  const date = new Date(dateString)
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${yyyy}/${mm}/${dd} ${hh}:${min}`
 }
 
 const createKey = async (nsId: string) => {
@@ -191,7 +207,7 @@ const createKey = async (nsId: string) => {
     }
     
     newKeyNames.value[nsId] = ''
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    showApiKeyModal.value = true
   } catch (err: any) {
     errorMsg.value = err.message || 'An error occurred'
   } finally {
@@ -240,7 +256,6 @@ onMounted(() => {
     <div class="header-section">
       <div class="header-content">
         <div>
-          <h1>B2B Integration</h1>
           <p>Manage your namespaces and API keys for backend-to-backend integration.</p>
         </div>
         <router-link v-if="quota?.is_admin" to="/admin" class="btn btn-primary admin-link">
@@ -270,10 +285,14 @@ onMounted(() => {
       {{ errorMsg }}
     </div>
 
-    <div class="grid-layout">
-      <!-- Create Section -->
-      <div class="card create-card">
-        <h2>Create Namespace</h2>
+    <!-- Modals -->
+    <!-- Create Namespace Modal -->
+    <div v-if="showCreateNamespaceModal" class="modal-overlay" @click.self="showCreateNamespaceModal = false">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h2>Create Namespace</h2>
+          <button @click="showCreateNamespaceModal = false" class="close-btn" title="Close">&times;</button>
+        </div>
         <p class="subtitle">Create a new isolated environment for your integration.</p>
         
         <form @submit.prevent="createNamespace" class="create-form">
@@ -289,48 +308,60 @@ onMounted(() => {
           </div>
           
           <div class="form-group">
-            <label for="quota">Storage Quota (Bytes) <span class="optional">(Optional)</span></label>
-            <input 
-              id="quota" 
-              v-model="newQuota" 
-              type="number" 
-              min="0"
-              placeholder="Leave empty for unlimited"
-            >
+            <label>Storage Quota</label>
+            <QuotaInput v-model="newQuota" :maxBytes="availableNamespaceQuota" required />
           </div>
           
-          <button type="submit" class="btn btn-primary" :disabled="isCreating || !newName || quota?.allocated === 0">
-            {{ isCreating ? 'Creating...' : 'Create Namespace' }}
-          </button>
-        </form>
-
-        <div v-if="createdApiKey" class="api-key-result">
-          <div class="success-header">
-            <span class="icon">✅</span>
-            <h3>API Key Ready!</h3>
-          </div>
-          <p class="warning-text">
-            <strong>IMPORTANT:</strong> Copy this API key now. You won't be able to see it again!
-          </p>
-          <div class="key-box">
-            <code>{{ createdApiKey }}</code>
-            <button @click="copyApiKey" class="btn btn-secondary btn-sm" title="Copy API Key">
-              Copy
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" @click="showCreateNamespaceModal = false">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="isCreating || !newName || newQuota === null || quota?.allocated === 0">
+              {{ isCreating ? 'Creating...' : 'Create Namespace' }}
             </button>
           </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- API Key Modal -->
+    <div v-if="showApiKeyModal && createdApiKey" class="modal-overlay" @click.self="showApiKeyModal = false">
+      <div class="modal-content card api-key-modal">
+        <div class="modal-header">
+          <div class="success-header">
+            <span class="icon">✅</span>
+            <h2>API Key Ready!</h2>
+          </div>
+          <button @click="showApiKeyModal = false" class="close-btn" title="Close">&times;</button>
+        </div>
+        <p class="warning-text">
+          <strong>IMPORTANT:</strong> Copy this API key now. You won't be able to see it again!
+        </p>
+        <div class="key-box-large">
+          <code>{{ createdApiKey }}</code>
+          <button @click="copyApiKey" class="btn btn-primary btn-lg" title="Copy API Key">
+            <span class="icon">📋</span> Copy Key
+          </button>
+        </div>
+        <div class="modal-actions centered">
+          <button @click="showApiKeyModal = false" class="btn btn-secondary">I have copied it</button>
         </div>
       </div>
+    </div>
 
-      <!-- List Section -->
-      <div class="card list-card">
-        <div class="list-header">
-          <h2>Your Namespaces</h2>
+    <!-- Main Content -->
+    <div class="card list-card">
+      <div class="list-header">
+        <h2>Your Namespaces</h2>
+        <div class="header-actions">
           <button @click="fetchNamespaces" class="btn btn-secondary btn-sm" :disabled="isLoading">
             ↻ Refresh
           </button>
+          <button @click="showCreateNamespaceModal = true" class="btn btn-primary btn-sm">
+            + Create Namespace
+          </button>
         </div>
+      </div>
         
-        <div v-if="isLoading" class="loading-state">
+      <div v-if="isLoading" class="loading-state">
           Loading namespaces...
         </div>
         
@@ -346,7 +377,6 @@ onMounted(() => {
                 <th>Limit</th>
                 <th>Used</th>
                 <th>Files</th>
-                <th>Created At</th>
                 <th>API Keys</th>
               </tr>
             </thead>
@@ -403,7 +433,6 @@ onMounted(() => {
           </table>
         </div>
       </div>
-    </div>
   </div>
 </template>
 
@@ -497,16 +526,76 @@ onMounted(() => {
   margin-bottom: 2rem;
 }
 
-.grid-layout {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 2rem;
+.header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
 }
 
-@media (max-width: 900px) {
-  .grid-layout {
-    grid-template-columns: 1fr;
-  }
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.modal-content.api-key-modal {
+  max-width: 600px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-text-light, #64748b);
+  cursor: pointer;
+  padding: 0;
+  margin-top: -0.25rem;
+}
+
+.close-btn:hover {
+  color: var(--color-heading);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.modal-actions.centered {
+  justify-content: center;
 }
 
 .card {
@@ -564,14 +653,6 @@ input:focus {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.api-key-result {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  background-color: #f0fdfa;
-  border: 1px solid #5eead4;
-  border-radius: 8px;
-}
-
 .success-header {
   display: flex;
   align-items: center;
@@ -579,33 +660,55 @@ input:focus {
   margin-bottom: 0.5rem;
 }
 
-.success-header h3 {
+.success-header h2 {
   color: #0f766e;
   margin: 0;
-  font-size: 1.2rem;
 }
 
 .warning-text {
   color: #991b1b;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+  background-color: #fef2f2;
+  padding: 0.75rem;
+  border-left: 4px solid #ef4444;
+  border-radius: 4px;
 }
 
-.key-box {
+.key-box-large {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  background-color: #1e293b;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  gap: 1rem;
+  background-color: #0f172a;
+  padding: 2.5rem 2rem;
+  border-radius: 8px;
+  gap: 1.5rem;
+  border: 1px solid #334155;
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.2);
 }
 
-.key-box code {
-  color: #a7f3d0;
-  font-family: monospace;
+.key-box-large code {
+  color: #38bdf8;
+  font-family: 'Courier New', Courier, monospace;
   word-break: break-all;
+  font-size: 1.6rem;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  text-align: center;
+  padding: 0.5rem;
+  background-color: #1e293b;
+  border-radius: 6px;
+  width: 100%;
+}
+
+.btn-lg {
+  padding: 0.75rem 2rem;
   font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
 }
 
 .list-header {
