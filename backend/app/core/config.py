@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +16,15 @@ class Settings(BaseSettings):
 
     # Clerk
     CLERK_FRONTEND_API: str = os.getenv("CLERK_FRONTEND_API", "https://relaxed-mustang-84.clerk.accounts.dev")
+    CLERK_SECRET_KEY: str | None = os.getenv("CLERK_SECRET_KEY")
 
-    model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True, extra="ignore")
+    # Security
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "CHANGEMELATERCHANGEMELATERCHANGEMELATERCHANGEMELATERCHANGEMELATE")
+
+    model_config = SettingsConfigDict(
+        env_file=(str(Path(__file__).parents[3] / ".env"), ".env"), 
+        env_ignore_empty=True, 
+        extra="ignore"
+    )
 
 settings = Settings()

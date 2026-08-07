@@ -12,11 +12,13 @@ if TYPE_CHECKING:
     from models.physical_file import PhysicalFile
     from models.permissions import FileAllowedUser
     from models.share_link import ShareLink
+    from models.namespace import Namespace
 
 class File(Base):
     __tablename__ = "files"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    namespace_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("namespaces.id", ondelete="RESTRICT"), nullable=False)
     folder_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("folders.id", ondelete="RESTRICT"), nullable=True)
     original_name: Mapped[str] = mapped_column(String, nullable=False)
     path: Mapped[str | None] = mapped_column(LtreeType, nullable=True)
@@ -29,6 +31,7 @@ class File(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
+    namespace: Mapped["Namespace"] = relationship("Namespace", back_populates="files")
     folder: Mapped["Folder | None"] = relationship("Folder", back_populates="files")
     physical_file: Mapped["PhysicalFile"] = relationship("PhysicalFile", back_populates="files")
     allowed_users: Mapped[list["FileAllowedUser"]] = relationship("FileAllowedUser", back_populates="file", cascade="all, delete-orphan")

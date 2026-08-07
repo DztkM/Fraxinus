@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Show, SignInButton, SignUpButton, UserButton, useAuth, useUser } from '@clerk/vue'
+import { useRoute, useRouter } from 'vue-router'
 
+const route = useRoute()
+const router = useRouter()
+
+const logoText = computed(() => {
+  if (route.path.startsWith('/dashboard')) return 'Fraxinus Dashboard'
+  if (route.path.startsWith('/admin')) return 'Fraxinus Admin'
+  return 'Fraxinus Drive'
+})
 const { getToken, isLoaded, isSignedIn } = useAuth()
 const { user } = useUser()
 
@@ -12,6 +21,14 @@ const copyMyId = async () => {
     alert('User ID copied to clipboard!')
   } catch (err) {
     console.error('Failed to copy ID', err)
+  }
+}
+
+const toggleMode = () => {
+  if (route.path === '/dashboard') {
+    router.push('/')
+  } else {
+    router.push('/dashboard')
   }
 }
 const authCheckResult = ref<string | null>(null)
@@ -46,8 +63,9 @@ const checkAuth = async () => {
 <template>
   <div class="app-container">
     <header class="app-header">
-      <div class="logo">Fraxinus Storage</div>
-      <div id="header-controls" class="header-controls"></div>
+      <div class="logo">{{ logoText }}</div>
+      <div id="header-controls" class="header-controls">
+      </div>
       <div class="auth-controls">
         <Show when="signed-out">
           <div class="auth-buttons">
@@ -57,6 +75,10 @@ const checkAuth = async () => {
         </Show>
         <Show when="signed-in">
           <div class="user-actions">
+            <div id="header-actions" style="display: contents;"></div>
+            <button class="btn btn-secondary btn-sm" @click="toggleMode">
+              {{ route.path === '/dashboard' ? '📁 Go to Files' : '⚙️ Go to Dashboard' }}
+            </button>
             <button class="btn btn-secondary btn-sm" @click="copyMyId" title="Copy my User ID">
               📋 Copy My ID
             </button>
@@ -102,8 +124,8 @@ const checkAuth = async () => {
 }
 
 .app-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 1rem 2rem;
   background-color: var(--color-background);
@@ -124,7 +146,36 @@ const checkAuth = async () => {
   color: var(--color-heading);
 }
 
+.main-nav {
+  display: flex;
+  gap: 1.5rem;
+  background-color: var(--color-background-soft);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+}
+
+.nav-link {
+  text-decoration: none;
+  color: var(--color-text);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.nav-link:hover {
+  background-color: var(--color-background-mute);
+}
+
+.nav-link.active {
+  background-color: var(--color-background);
+  color: var(--color-heading);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
 .auth-controls {
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 1rem;

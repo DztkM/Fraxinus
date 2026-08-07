@@ -6,10 +6,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from core.auth import get_current_user
+from core.auth import get_current_user, AuthContext
 from api.files import router as files_router
 from api.folders import router as folders_router
 from api.shared import router as shared_router
+from api.dashboard import router as dashboard_router
+from api.admin import router as admin_router
 from core.minio import init_minio_bucket
 
 @asynccontextmanager
@@ -21,7 +23,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:5174", "http://127.0.0.1:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,6 +32,8 @@ app.add_middleware(
 app.include_router(files_router)
 app.include_router(folders_router)
 app.include_router(shared_router)
+app.include_router(dashboard_router)
+app.include_router(admin_router)
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://admin:CHANGEMELATER@localhost:5433/fraxinus_database")
 
@@ -46,29 +50,17 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    db_status = "not configured"
-
-    if engine is not None:
-        try:
-            async with engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
-            db_status = "connected"
-        except SQLAlchemyError as e:
-            db_status = f"error: {e.__class__.__name__}"
-
     return {
         "status": "ok",
-        "database": db_status,
-        "database_url": os.getenv("DATABASE_URL", "Not Set").split("@")[-1],
-        "minio_endpoint": os.getenv("MINIO_ENDPOINT", "Not Set"),
     }
 
 @app.get("/v1/api/check_auth")
-async def check_auth(user_id: str | None = Depends(get_current_user)):
-    if user_id is None:
+async def check_auth(auth_ctx: AuthContext | None = Depends(get_current_user)):
+    if auth_ctx is None:
         return {"message": "Access granted via share_token"}
         
     return {
         "message": "Authentication successful",
-        "user_id": user_id
+        "user_id": auth_ctx.user_id,
+        "namespace_id": auth_ctx.namespace_id
     }

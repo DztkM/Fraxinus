@@ -6,6 +6,7 @@ from models.physical_file import PhysicalFile
 from models.file import File
 from models.permissions import FolderAllowedUser, FileAllowedUser
 from models.share_link import ShareLink
+from core.auth import CLERK_NAMESPACE_ID
 
 @pytest.mark.asyncio
 async def test_create_folder(db_session):
@@ -15,13 +16,14 @@ async def test_create_folder(db_session):
     new_folder = Folder(
         name="test_folder",
         author_id="user123",
+        namespace_id=CLERK_NAMESPACE_ID
         # path could be set if ltree is manually managed, e.g. "root.test_folder"
     )
     db_session.add(new_folder)
     await db_session.commit()
     
     # Verify it was created
-    result = await db_session.execute(select(Folder).filter_by(name="test_folder"))
+    result = await db_session.execute(select(Folder).filter_by(id=new_folder.id))
     folder = result.scalar_one_or_none()
     
     assert folder is not None
@@ -34,17 +36,17 @@ async def test_create_folder_hierarchy(db_session):
     """
     Test creating a folder inside another folder (parent_id relationship).
     """
-    parent_folder = Folder(name="parent", author_id="user1")
+    parent_folder = Folder(name="parent", author_id="user1", namespace_id=CLERK_NAMESPACE_ID)
     db_session.add(parent_folder)
     await db_session.commit()
     await db_session.refresh(parent_folder)
     
-    child_folder = Folder(name="child", parent_id=parent_folder.id, author_id="user1")
+    child_folder = Folder(name="child", parent_id=parent_folder.id, author_id="user1", namespace_id=CLERK_NAMESPACE_ID)
     db_session.add(child_folder)
     await db_session.commit()
     
     # Verify the child has the correct parent
-    result = await db_session.execute(select(Folder).filter_by(name="child"))
+    result = await db_session.execute(select(Folder).filter_by(id=child_folder.id))
     child = result.scalar_one_or_none()
     
     assert child is not None
@@ -69,13 +71,14 @@ async def test_create_physical_and_logical_file(db_session):
         original_name="document.txt",
         uploader_id="user456",
         status="completed",
+        namespace_id=CLERK_NAMESPACE_ID,
         physical_file_id=phys_file.id
     )
     db_session.add(logical_file)
     await db_session.commit()
     
     # Verify logical file is attached to physical file
-    result = await db_session.execute(select(File).filter_by(original_name="document.txt"))
+    result = await db_session.execute(select(File).filter_by(id=logical_file.id))
     file_record = result.scalar_one_or_none()
     
     assert file_record is not None
@@ -87,11 +90,11 @@ async def test_folder_delete_restrict_children(db_session):
     """
     Test that deleting a folder with child folders fails due to RESTRICT.
     """
-    parent_folder = Folder(name="parent", author_id="user1")
+    parent_folder = Folder(name="parent", author_id="user1", namespace_id=CLERK_NAMESPACE_ID)
     db_session.add(parent_folder)
     await db_session.flush()
     
-    child_folder = Folder(name="child", parent_id=parent_folder.id, author_id="user1")
+    child_folder = Folder(name="child", parent_id=parent_folder.id, author_id="user1", namespace_id=CLERK_NAMESPACE_ID)
     db_session.add(child_folder)
     await db_session.commit()
     
@@ -105,7 +108,7 @@ async def test_folder_delete_restrict_files(db_session):
     """
     Test that deleting a folder with files fails due to RESTRICT.
     """
-    folder = Folder(name="folder_with_files", author_id="user1")
+    folder = Folder(name="folder_with_files", author_id="user1", namespace_id=CLERK_NAMESPACE_ID)
     db_session.add(folder)
     await db_session.flush()
     
@@ -113,7 +116,7 @@ async def test_folder_delete_restrict_files(db_session):
     db_session.add(phys_file)
     await db_session.flush()
     
-    file = File(original_name="test.txt", uploader_id="user1", physical_file_id=phys_file.id, folder_id=folder.id)
+    file = File(original_name="test.txt", uploader_id="user1", physical_file_id=phys_file.id, folder_id=folder.id, namespace_id=CLERK_NAMESPACE_ID)
     db_session.add(file)
     await db_session.commit()
     
@@ -126,7 +129,7 @@ async def test_folder_delete_cascade_permissions(db_session):
     """
     Test that deleting a folder cascades to its permissions and share links.
     """
-    folder = Folder(name="empty_folder", author_id="user1")
+    folder = Folder(name="empty_folder", author_id="user1", namespace_id=CLERK_NAMESPACE_ID)
     db_session.add(folder)
     await db_session.flush()
     
@@ -165,7 +168,7 @@ async def test_file_delete_cascade_permissions(db_session):
     db_session.add(phys_file)
     await db_session.flush()
     
-    file = File(original_name="file_to_delete.txt", uploader_id="user1", physical_file_id=phys_file.id)
+    file = File(original_name="file_to_delete.txt", uploader_id="user1", physical_file_id=phys_file.id, namespace_id=CLERK_NAMESPACE_ID)
     db_session.add(file)
     await db_session.flush()
     

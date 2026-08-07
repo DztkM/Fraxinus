@@ -48,7 +48,7 @@ const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function fetchFiles(token: string): Promise<FileItem[]> {
   console.log("Fetching files with token:", token ? `${token.substring(0, 10)}...` : "NO_TOKEN");
-  const res = await fetch(`${API_BASE_URL}/api/files/?limit=100`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/files/?limit=100`, {
     headers: {
       Authorization: `Bearer ${token}`
     }
@@ -63,8 +63,8 @@ export async function fetchFiles(token: string): Promise<FileItem[]> {
 
 export async function fetchFolderContents(token: string, folderId: string | 'root'): Promise<FolderContents> {
   const url = folderId === 'root' 
-    ? `${API_BASE_URL}/api/folders/root/contents`
-    : `${API_BASE_URL}/api/folders/${folderId}/contents`;
+    ? `${API_BASE_URL}/v1/api/folders/root/contents`
+    : `${API_BASE_URL}/v1/api/folders/${folderId}/contents`;
     
   const res = await fetch(url, {
     headers: {
@@ -84,7 +84,7 @@ export async function createFolder(token: string, name: string, parentId?: strin
     body.parent_id = parentId;
   }
   
-  const res = await fetch(`${API_BASE_URL}/api/folders/`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/folders/`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -101,7 +101,7 @@ export async function createFolder(token: string, name: string, parentId?: strin
 }
 
 export async function downloadFile(token: string, fileId: string): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/api/files/${fileId}/download`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/files/${fileId}/download`, {
     headers: {
       Authorization: `Bearer ${token}`
     }
@@ -148,7 +148,7 @@ export async function uploadFile(
   }
 
   // 1. Init upload
-  const initRes = await fetch(`${API_BASE_URL}/api/files/upload/init`, {
+  const initRes = await fetch(`${API_BASE_URL}/v1/api/files/upload/init`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -201,7 +201,7 @@ export async function uploadFile(
   }
 
   // 3. Complete upload
-  const completeRes = await fetch(`${API_BASE_URL}/api/files/${fileId}/upload/complete`, {
+  const completeRes = await fetch(`${API_BASE_URL}/v1/api/files/${fileId}/upload/complete`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -219,7 +219,7 @@ export async function uploadFile(
 }
 
 export async function renameFolder(token: string, folderId: string, name: string): Promise<FolderItem> {
-  const res = await fetch(`${API_BASE_URL}/api/folders/${folderId}`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/folders/${folderId}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -235,7 +235,7 @@ export async function renameFolder(token: string, folderId: string, name: string
 }
 
 export async function deleteFolder(token: string, folderId: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/folders/${folderId}`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/folders/${folderId}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`
@@ -248,7 +248,7 @@ export async function deleteFolder(token: string, folderId: string): Promise<voi
 }
 
 export async function renameFile(token: string, fileId: string, originalName: string): Promise<FileItem> {
-  const res = await fetch(`${API_BASE_URL}/api/files/${fileId}`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/files/${fileId}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -264,7 +264,7 @@ export async function renameFile(token: string, fileId: string, originalName: st
 }
 
 export async function deleteFile(token: string, fileId: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/files/${fileId}`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/files/${fileId}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`
@@ -287,7 +287,7 @@ export async function updateFolderAccess(
     body.allowed_users = allowedUsers;
   }
   
-  const res = await fetch(`${API_BASE_URL}/api/folders/${folderId}/access`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/folders/${folderId}/access`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -313,7 +313,7 @@ export async function updateFileAccess(
     body.allowed_users = allowedUsers;
   }
 
-  const res = await fetch(`${API_BASE_URL}/api/files/${fileId}/access`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/files/${fileId}/access`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -329,7 +329,7 @@ export async function updateFileAccess(
 }
 
 export async function fetchSharedItems(token: string): Promise<SharedItem[]> {
-  const res = await fetch(`${API_BASE_URL}/api/shared/`, {
+  const res = await fetch(`${API_BASE_URL}/v1/api/shared/`, {
     headers: {
       Authorization: `Bearer ${token}`
     }
