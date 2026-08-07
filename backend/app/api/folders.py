@@ -14,7 +14,7 @@ from models.file import File
 from models.permissions import FolderAllowedUser
 from schemas.folder import FolderCreateRequest, FolderResponse, FolderContentsResponse, FolderUpdateRequest, FolderAccessUpdateRequest
 
-router = APIRouter(prefix="/api/folders", tags=["folders"])
+router = APIRouter(prefix="/v1/api/folders", tags=["folders"])
 
 def format_ltree(uuid_val: uuid.UUID | str) -> str:
     return str(uuid_val).replace("-", "_")

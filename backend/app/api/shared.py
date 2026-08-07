@@ -9,7 +9,7 @@ from models.file import File
 from models.permissions import FolderAllowedUser, FileAllowedUser
 from schemas.shared import SharedListResponse
 
-router = APIRouter(prefix="/api/shared", tags=["shared"])
+router = APIRouter(prefix="/v1/api/shared", tags=["shared"])
 
 @router.get("/", response_model=SharedListResponse)
 async def get_shared_items(

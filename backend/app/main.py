@@ -50,21 +50,8 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    db_status = "not configured"
-
-    if engine is not None:
-        try:
-            async with engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
-            db_status = "connected"
-        except SQLAlchemyError as e:
-            db_status = f"error: {e.__class__.__name__}"
-
     return {
         "status": "ok",
-        "database": db_status,
-        "database_url": os.getenv("DATABASE_URL", "Not Set").split("@")[-1],
-        "minio_endpoint": os.getenv("MINIO_ENDPOINT", "Not Set"),
     }
 
 @app.get("/v1/api/check_auth")

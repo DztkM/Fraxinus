@@ -27,7 +27,7 @@ from schemas.file import (
 )
 from sqlalchemy import delete
 
-router = APIRouter(prefix="/api/files", tags=["files"])
+router = APIRouter(prefix="/v1/api/files", tags=["files"])
 
 @router.post("/upload/init", response_model=FileUploadInitResponse)
 async def init_upload(

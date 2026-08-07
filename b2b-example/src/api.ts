@@ -20,7 +20,7 @@ export class B2BApiClient {
   }
 
   async listFiles() {
-    const response = await fetch(`${API_BASE}/api/files/`, {
+    const response = await fetch(`${API_BASE}/v1/api/files/`, {
       headers: this.getHeaders()
     });
     if (!response.ok) throw new Error('Failed to list files');
@@ -28,7 +28,7 @@ export class B2BApiClient {
   }
 
   async initUpload(file: File, partsCount: number) {
-    const response = await fetch(`${API_BASE}/api/files/upload/init`, {
+    const response = await fetch(`${API_BASE}/v1/api/files/upload/init`, {
       method: 'POST',
       headers: {
         ...this.getHeaders(),
@@ -56,7 +56,7 @@ export class B2BApiClient {
   }
 
   async completeUpload(fileId: string, uploadId: string, parts: { PartNumber: number; ETag: string }[]) {
-    const response = await fetch(`${API_BASE}/api/files/${fileId}/upload/complete`, {
+    const response = await fetch(`${API_BASE}/v1/api/files/${fileId}/upload/complete`, {
       method: 'POST',
       headers: {
         ...this.getHeaders(),
@@ -72,7 +72,7 @@ export class B2BApiClient {
   }
 
   async getDownloadUrl(fileId: string) {
-    const response = await fetch(`${API_BASE}/api/files/${fileId}/download`, {
+    const response = await fetch(`${API_BASE}/v1/api/files/${fileId}/download`, {
       headers: this.getHeaders()
     });
     if (!response.ok) throw new Error('Failed to get download URL');
@@ -80,7 +80,7 @@ export class B2BApiClient {
   }
 
   async deleteFile(fileId: string) {
-    const response = await fetch(`${API_BASE}/api/files/${fileId}`, {
+    const response = await fetch(`${API_BASE}/v1/api/files/${fileId}`, {
       method: 'DELETE',
       headers: this.getHeaders()
     });
